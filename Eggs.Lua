@@ -110,7 +110,7 @@ local function getInventoryEggs()
 end
 
 -- ======================================
--- AUTO-DISCOVERY FROM workspace.Rendered.Generic
+-- AUTO-DISCOVERY
 -- ======================================
 local function isRiftEggName(name)
     return name:lower() == name and name:find("%-egg$") ~= nil
@@ -739,38 +739,25 @@ EggsTab:Toggle({
 })
 
 -- ======================================
--- UI - HATCH SELECTED EGG (DYNAMIC DROPDOWN)
+-- UI - HATCH SELECTED EGG (DYNAMIC DROPDOWN via :Refresh())
 -- ======================================
 EggsTab:Section({ Title = "------- Hatch Selected Egg -------" })
 
 -- Initial scan
 scanAndDiscoverEggs()
 
--- Hold reference to dropdown so we can replace it
-local eggDropdown = nil
-
-local function createEggDropdown()
-    if eggDropdown then
-        pcall(function() eggDropdown:Destroy() end)
-        eggDropdown = nil
-    end
-
-    local allEggs = getAllEggNames()
-
-    eggDropdown = EggsTab:Dropdown({
-        Title = "Select Egg",
-        Values = allEggs,
-        Value = selectedEgg,
-        Callback = function(v)
-            selectedEgg = v
-            eggSettings.selectedEgg = v
-            getgenv().HubSettings.eggs = eggSettings
-            saveHubSettings()
-        end,
-    })
-end
-
-createEggDropdown()
+-- Create dropdown ONCE
+local eggDropdown = EggsTab:Dropdown({
+    Title = "Select Egg",
+    Values = getAllEggNames(),
+    Value = selectedEgg,
+    Callback = function(v)
+        selectedEgg = v
+        eggSettings.selectedEgg = v
+        getgenv().HubSettings.eggs = eggSettings
+        saveHubSettings()
+    end,
+})
 
 local eggListParagraph = EggsTab:Paragraph({
     Title = "Egg List",
@@ -782,8 +769,12 @@ EggsTab:Button({
     Desc = "Auto-discovers new eggs from the world",
     Callback = function()
         local newCount = scanAndDiscoverEggs()
-        createEggDropdown()
         local newEggs = getAllEggNames()
+
+        -- Update dropdown values + refresh
+        eggDropdown.Values = newEggs
+        pcall(function() eggDropdown:Refresh() end)
+
         local text = "Found " .. #newEggs .. " eggs"
         if newCount > 0 then
             text = text .. " (" .. newCount .. " new discovered!)"
@@ -1195,7 +1186,6 @@ EggsTab:Toggle({
 task.spawn(function()
     task.wait(1.5)
     
-    -- Priority Rifts
     if corruptShadowEnabled then
         corruptShadowThread = task.spawn(function()
             while corruptShadowEnabled do
@@ -1370,7 +1360,6 @@ task.spawn(function()
         end)
     end
     
-    -- Auto Hatch
     if autoHatchEnabled then
         autoHatchThread = task.spawn(function()
             local wasActive = false
@@ -1418,7 +1407,6 @@ task.spawn(function()
         end)
     end
     
-    -- Spam E
     if spamEEnabled then
         spamEThread = task.spawn(function()
             local lastAutoHatchR = 0
@@ -1450,12 +1438,10 @@ task.spawn(function()
         end)
     end
     
-    -- Hide Animation flag
     if hideAnimEnabled then
         getgenv().animationHidden = true
     end
     
-    -- Auto Bounty
     if bountyEnabled then
         refreshBountyLabels()
         bountyThread = task.spawn(function()
@@ -1506,7 +1492,6 @@ task.spawn(function()
         end)
     end
     
-    -- Auto Summon Rift for Bounty
     if riftEnabled then
         refreshBountyLabels()
         local world = EGG_WORLDS[currentBountyEgg] or "The Overworld"
