@@ -31,7 +31,7 @@ if not settings.eggs then settings.eggs = {} end
 local eggSettings = settings.eggs
 
 -- ======================================
--- EGG LOCATIONS
+-- EGG LOCATIONS (permanent hardcoded list)
 -- ======================================
 local EGG_LOCATIONS = {
     ["Common Egg"] = Vector3.new(-80, 7, 5),
@@ -107,6 +107,63 @@ local function getInventoryEggs()
     end
     table.sort(eggs)
     return eggs
+end
+
+-- ======================================
+-- AUTO-DISCOVERY FROM workspace.Rendered.Generic
+-- ======================================
+local function isRiftEggName(name)
+    -- Rift eggs are lowercase hyphenated (e.g. "lunar-egg")
+    return name:lower() == name and name:find("%-egg$") ~= nil
+end
+
+local function is4xEgg(name)
+    return name:lower():find("^4x") ~= nil or name:lower():find("4x luck") ~= nil
+end
+
+local function isPlaceholderEgg(name)
+    return name == "Egg" or name == "ShadowEgg" or name == "CelestialEgg"
+end
+
+local function scanAndDiscoverEggs()
+    local newCount = 0
+    local rendered = workspace:FindFirstChild("Rendered")
+    if not rendered then return 0 end
+
+    local generic = rendered:FindFirstChild("Generic")
+    if not generic then return 0 end
+
+    for _, obj in ipairs(generic:GetChildren()) do
+        if obj:IsA("Model") and obj.Name:lower():find("egg") then
+            local name = obj.Name
+
+            -- Skip filters
+            if isRiftEggName(name) then continue end
+            if is4xEgg(name) then continue end
+            if isPlaceholderEgg(name) then continue end
+
+            -- Already known?
+            if not EGG_LOCATIONS[name] and not discoveredEggs[name] then
+                -- Try to grab position
+                local ok, pivot = pcall(function() return obj:GetPivot() end)
+                if ok and pivot then
+                    local pos = pivot.Position
+                    discoveredEggs[name] = pos
+                    newCount = newCount + 1
+                    print("[Eggs] Discovered: " .. name .. " @ (" .. 
+                        math.floor(pos.X) .. ", " .. math.floor(pos.Y) .. ", " .. math.floor(pos.Z) .. ")")
+                end
+            elseif discoveredEggs[name] then
+                -- Update cached position
+                local ok, pivot = pcall(function() return obj:GetPivot() end)
+                if ok and pivot then
+                    discoveredEggs[name] = pivot.Position
+                end
+            end
+        end
+    end
+
+    return newCount
 end
 
 -- ======================================
@@ -691,6 +748,9 @@ EggsTab:Toggle({
 -- ======================================
 EggsTab:Section({ Title = "------- Hatch Selected Egg -------" })
 
+-- Initial scan
+scanAndDiscoverEggs()
+
 local allEggs = getAllEggNames()
 
 EggsTab:Dropdown({
@@ -712,10 +772,14 @@ local eggListParagraph = EggsTab:Paragraph({
 
 EggsTab:Button({
     Title = "Re Scan The Egg Dropdown",
-    Desc = "Refresh the list of available eggs",
+    Desc = "Auto-discovers new eggs from the world",
     Callback = function()
+        local newCount = scanAndDiscoverEggs()
         local newEggs = getAllEggNames()
         local text = "Found " .. #newEggs .. " eggs"
+        if newCount > 0 then
+            text = text .. " (" .. newCount .. " new discovered!)"
+        end
         pcall(function() eggListParagraph:SetDesc(text) end)
         print("[Eggs] Rescan: " .. text)
     end,
