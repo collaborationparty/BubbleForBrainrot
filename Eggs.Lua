@@ -113,7 +113,6 @@ end
 -- AUTO-DISCOVERY FROM workspace.Rendered.Generic
 -- ======================================
 local function isRiftEggName(name)
-    -- Rift eggs are lowercase hyphenated (e.g. "lunar-egg")
     return name:lower() == name and name:find("%-egg$") ~= nil
 end
 
@@ -137,14 +136,11 @@ local function scanAndDiscoverEggs()
         if obj:IsA("Model") and obj.Name:lower():find("egg") then
             local name = obj.Name
 
-            -- Skip filters
             if isRiftEggName(name) then continue end
             if is4xEgg(name) then continue end
             if isPlaceholderEgg(name) then continue end
 
-            -- Already known?
             if not EGG_LOCATIONS[name] and not discoveredEggs[name] then
-                -- Try to grab position
                 local ok, pivot = pcall(function() return obj:GetPivot() end)
                 if ok and pivot then
                     local pos = pivot.Position
@@ -154,7 +150,6 @@ local function scanAndDiscoverEggs()
                         math.floor(pos.X) .. ", " .. math.floor(pos.Y) .. ", " .. math.floor(pos.Z) .. ")")
                 end
             elseif discoveredEggs[name] then
-                -- Update cached position
                 local ok, pivot = pcall(function() return obj:GetPivot() end)
                 if ok and pivot then
                     discoveredEggs[name] = pivot.Position
@@ -478,7 +473,7 @@ local function toggleAutoHatchR()
 end
 
 -- ======================================
--- 4X EGG DETECTION (WORKSPACE SCAN)
+-- 4X EGG DETECTION
 -- ======================================
 local function find4xEgg()
     for _, obj in ipairs(workspace:GetDescendants()) do
@@ -744,26 +739,38 @@ EggsTab:Toggle({
 })
 
 -- ======================================
--- UI - HATCH SELECTED EGG
+-- UI - HATCH SELECTED EGG (DYNAMIC DROPDOWN)
 -- ======================================
 EggsTab:Section({ Title = "------- Hatch Selected Egg -------" })
 
 -- Initial scan
 scanAndDiscoverEggs()
 
-local allEggs = getAllEggNames()
+-- Hold reference to dropdown so we can replace it
+local eggDropdown = nil
 
-EggsTab:Dropdown({
-    Title = "Select Egg",
-    Values = allEggs,
-    Value = selectedEgg,
-    Callback = function(v)
-        selectedEgg = v
-        eggSettings.selectedEgg = v
-        getgenv().HubSettings.eggs = eggSettings
-        saveHubSettings()
-    end,
-})
+local function createEggDropdown()
+    if eggDropdown then
+        pcall(function() eggDropdown:Destroy() end)
+        eggDropdown = nil
+    end
+
+    local allEggs = getAllEggNames()
+
+    eggDropdown = EggsTab:Dropdown({
+        Title = "Select Egg",
+        Values = allEggs,
+        Value = selectedEgg,
+        Callback = function(v)
+            selectedEgg = v
+            eggSettings.selectedEgg = v
+            getgenv().HubSettings.eggs = eggSettings
+            saveHubSettings()
+        end,
+    })
+end
+
+createEggDropdown()
 
 local eggListParagraph = EggsTab:Paragraph({
     Title = "Egg List",
@@ -775,6 +782,7 @@ EggsTab:Button({
     Desc = "Auto-discovers new eggs from the world",
     Callback = function()
         local newCount = scanAndDiscoverEggs()
+        createEggDropdown()
         local newEggs = getAllEggNames()
         local text = "Found " .. #newEggs .. " eggs"
         if newCount > 0 then
