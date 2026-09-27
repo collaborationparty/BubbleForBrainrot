@@ -52,6 +52,24 @@ local autoRejoinEnabled = settings.webhook.autoRejoin or false
 local oddsThresholdInput = settings.webhook.oddsThreshold or ""
 
 -- ======================================
+-- SKIP LIST — Private webhook only, public still sent
+-- ======================================
+local SKIP_PRIVATE_PETS = {
+    ["Inferno Bull"] = true,
+    ["Quamatic's Creation"] = true,
+    ["Fenner's Bruh Moment"] = true,
+    ["Dark Wasp"] = true,
+    ["Elite Shard"] = true,
+    ["Lucky Dogcat"] = true,
+    ["Inferno Wyrm"] = true,
+    ["Demonic One"] = true,
+    ["Royal Dogcat"] = true,
+    ["Overworld Basket"] = true,
+    ["Andromeda"] = true,
+    ["Dark Weblord"] = true,
+}
+
+-- ======================================
 -- TRUE RARITY DETECTION
 -- ======================================
 local function getTrueRarity(info)
@@ -652,8 +670,16 @@ task.spawn(function()
                         
                         local threshold = getThreshold()
                         local shouldSendPrivate = true
-                        
-                        if threshold and not isSuper and not isXL then
+
+                        -- Skip private webhook for specific pets (public still goes)
+                        if SKIP_PRIVATE_PETS[pet.Name] then
+                            shouldSendPrivate = false
+                        end
+
+                        -- Infinity & Void ALWAYS send private (bypasses threshold + origin bypass + skip list)
+                        local isInfinityOrVoid = (rarity == "Infinity" or rarity == "Void")
+
+                        if threshold and not isSuper and not isXL and not isInfinityOrVoid then
                             if not isOriginBypass(origin, rarity) then
                                 local oneInX = getOneInX(info and info.Chance)
                                 if oneInX <= threshold then
@@ -872,7 +898,7 @@ WebhookTab:Section({ Title = "Odds Threshold (Private Only)" })
 
 WebhookTab:Paragraph({
     Title = "How it works",
-    Desc = "Only sends private webhook if pet is RARER than this. Format: 10B = 1/10B, 100M = 1/100M, 1T = 1/1T. Leave empty to send ALL pets. Does NOT affect: Super Legendary & XL pets (always send).",
+    Desc = "Only sends private webhook if pet is RARER than this. Format: 10B = 1/10B, 100M = 1/100M, 1T = 1/1T. Leave empty to send ALL pets. Does NOT affect: Super Legendary, XL, Infinity, Void pets (always send).",
 })
 
 WebhookTab:Paragraph({
@@ -934,7 +960,7 @@ WebhookTab:Section({ Title = "Status" })
 
 WebhookTab:Paragraph({
     Title = "Active",
-    Desc = "Tracking: Secret, Celestial, Infinity, Void, Super Legendary, XL\nAlerts: 4x Egg\nOnline ping: Every 30 minutes\nStuck detection: Every 2 min, rejoin after 6 min\nFragments + Stats + Buff Times\nOdds Threshold: Private only, XL & Super exempt",
+    Desc = "Tracking: Secret, Celestial, Infinity, Void, Super Legendary, XL\nAlerts: 4x Egg\nOnline ping: Every 30 minutes\nStuck detection: Every 2 min, rejoin after 6 min\nFragments + Stats + Buff Times\nOdds Threshold: Private only, XL & Super exempt\nInfinity/Void: ALWAYS notify",
 })
 
 WebhookTab:Paragraph({
