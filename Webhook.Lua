@@ -70,6 +70,32 @@ local SKIP_PRIVATE_PETS = {
 }
 
 -- ======================================
+-- RARE INVENTORY EGGS
+-- ======================================
+local RARE_EGGS = {
+    ["VOID EGG??"] = {
+        displayName = "VOID EGG??",
+        imageURL = "https://cdn.bgsi.gg/eggs/void-egg.png",
+        pets = {
+            { name = "VOID PYRAMIDIUM", rarity = "Void", chance = "100" },
+        },
+        color = 0x8A2BE2,
+    },
+    ["Shadow Realm Egg"] = {
+        displayName = "Shadow Realm Egg",
+        imageURL = "https://cdn.bgsi.gg/eggs/shadow-realm-egg.png",
+        pets = {
+            { name = "Ancient Shadow Leviathan", rarity = "Infinity", chance = "10" },
+            { name = "Shadow Shock", rarity = "Celestial", chance = "90" },
+        },
+        color = 0x8A2BE2,
+    },
+}
+
+local rareEggsSeen = {}         -- tracks last seen count: [eggName] = number
+local rareEggsNotified = {}     -- tracks whether we already fired for this acquisition
+
+-- ======================================
 -- TRUE RARITY DETECTION
 -- ======================================
 local function getTrueRarity(info)
@@ -425,9 +451,11 @@ end
 local hatchQueue={}
 local onlineQueue={}
 local publicQueue={}
+local rareEggQueue={}
 local hatchProcessing=false
 local onlineProcessing=false
 local publicProcessing=false
+local rareEggProcessing=false
 
 local function sendToWebhook(queue, url)
     if url == "" then return end
@@ -448,6 +476,7 @@ end
 local function processHatch() if not hatchProcessing then hatchProcessing = true task.spawn(function() sendToWebhook(hatchQueue, HATCH_WEBHOOK_URL) hatchProcessing = false end) end end
 local function processPublic() if not publicProcessing then publicProcessing = true task.spawn(function() sendToWebhook(publicQueue, PUBLIC_WEBHOOK_URL) publicProcessing = false end) end end
 local function processOnline() if not onlineProcessing then onlineProcessing = true task.spawn(function() sendToWebhook(onlineQueue, ONLINE_WEBHOOK_URL) onlineProcessing = false end) end end
+local function processRareEgg() if not rareEggProcessing then rareEggProcessing = true task.spawn(function() sendToWebhook(rareEggQueue, HATCH_WEBHOOK_URL) rareEggProcessing = false end) end end
 
 -- ======================================
 -- STUCK DETECTION + REJOIN
@@ -619,6 +648,80 @@ task.spawn(function()
 end)
 
 -- ======================================
+-- RARE EGG SCANNER
+-- ======================================
+task.spawn(function()
+    local initData = LocalData:Get()
+    if initData and initData.Powerups then
+        for eggName, _ in pairs(RARE_EGGS) do
+            rareEggsSeen[eggName] = initData.Powerups[eggName] or 0
+        end
+    end
+    
+    while true do
+        task.wait(5)
+        local data = LocalData:Get()
+        if data and data.Powerups then
+            for eggName, eggInfo in pairs(RARE_EGGS) do
+                local currentCount = data.Powerups[eggName] or 0
+                local lastCount = rareEggsSeen[eggName] or 0
+                
+                if currentCount > lastCount then
+                    -- Fire notification
+                    local petLines = {}
+                    for _, pet in ipairs(eggInfo.pets) do
+                        table.insert(petLines, "• " .. pet.name .. " [" .. pet.rarity .. "] | " .. pet.chance .. "%")
+                    end
+                    local petListStr = table.concat(petLines, "\n")
+                    
+                    local displayName = hideUsername and "Hidden" or player.Name
+                    local pingMsg = ""
+                    if DISCORD_USER_ID ~= "" then
+                        pingMsg = "<@" .. DISCORD_USER_ID .. ">"
+                    end
+                    
+                    table.insert(rareEggQueue, {
+                        content = pingMsg,
+                        embeds = {{
+                            title = "🔥 RARE EGG OBTAINED! 🔥",
+                            description = "**" .. displayName .. "** just got a **" .. eggInfo.displayName .. "**!\n\n**Contents:**\n" .. petListStr,
+                            color = eggInfo.color,
+                            thumbnail = { url = eggInfo.imageURL },
+                            fields = {
+                                { name = "Source", value = "Pickup Collection", inline = true },
+                                { name = "Rarity", value = "Secret", inline = true },
+                            },
+                            footer = { text = "Renoa Hub * " .. os.date("%Y-%m-%d %H:%M:%S") },
+                        }},
+                    })
+                    processRareEgg()
+                    
+                    table.insert(publicQueue, {
+                        embeds = {{
+                            title = "🔥 RARE EGG OBTAINED! 🔥",
+                            description = "Someone just got a **" .. eggInfo.displayName .. "**!\n\n**Contents:**\n" .. petListStr,
+                            color = eggInfo.color,
+                            thumbnail = { url = eggInfo.imageURL },
+                            fields = {
+                                { name = "Source", value = "Pickup Collection", inline = true },
+                                { name = "Rarity", value = "Secret", inline = true },
+                            },
+                            footer = { text = "Renoa Hub * " .. os.date("%Y-%m-%d %H:%M:%S") },
+                        }},
+                    })
+                    processPublic()
+                    
+                    getgenv().ActivityStatus.current = "Got " .. eggInfo.displayName .. "!"
+                    getgenv().ActivityStatus.trigger = true
+                end
+                
+                rareEggsSeen[eggName] = currentCount
+            end
+        end
+    end
+end)
+
+-- ======================================
 -- FULL INVENTORY SCANNER
 -- ======================================
 local knownPets = {}
@@ -671,12 +774,10 @@ task.spawn(function()
                         local threshold = getThreshold()
                         local shouldSendPrivate = true
 
-                        -- Skip private webhook for specific pets (public still goes)
                         if SKIP_PRIVATE_PETS[pet.Name] then
                             shouldSendPrivate = false
                         end
 
-                        -- Infinity & Void ALWAYS send private (bypasses threshold + origin bypass + skip list)
                         local isInfinityOrVoid = (rarity == "Infinity" or rarity == "Void")
 
                         if threshold and not isSuper and not isXL and not isInfinityOrVoid then
@@ -960,7 +1061,7 @@ WebhookTab:Section({ Title = "Status" })
 
 WebhookTab:Paragraph({
     Title = "Active",
-    Desc = "Tracking: Secret, Celestial, Infinity, Void, Super Legendary, XL\nAlerts: 4x Egg\nOnline ping: Every 30 minutes\nStuck detection: Every 2 min, rejoin after 6 min\nFragments + Stats + Buff Times\nOdds Threshold: Private only, XL & Super exempt\nInfinity/Void: ALWAYS notify",
+    Desc = "Tracking: Secret, Celestial, Infinity, Void, Super Legendary, XL\nAlerts: 4x Egg, Rare Inventory Eggs (VOID EGG??, Shadow Realm Egg)\nOnline ping: Every 30 minutes\nStuck detection: Every 2 min, rejoin after 6 min\nFragments + Stats + Buff Times\nOdds Threshold: Private only, XL & Super exempt\nInfinity/Void: ALWAYS notify",
 })
 
 WebhookTab:Paragraph({
