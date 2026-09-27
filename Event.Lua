@@ -2,7 +2,7 @@
 -- EVENT TAB (WINDUI VERSION)
 -- ================================================
 repeat task.wait() until getgenv().Window
-local Window = getgenv().Window
+local Window = getgenv().Windo
 local WindUI = getgenv().WindUI
 
 local EventTab = Window:Tab({ Title = "Event", Icon = "calendar" })
