@@ -110,7 +110,7 @@ local function getInventoryEggs()
 end
 
 -- ======================================
--- AUTO-DISCOVERY
+-- AUTO-DISCOVERY FROM workspace.Rendered.Generic
 -- ======================================
 local function isRiftEggName(name)
     return name:lower() == name and name:find("%-egg$") ~= nil
@@ -739,7 +739,7 @@ EggsTab:Toggle({
 })
 
 -- ======================================
--- UI - HATCH SELECTED EGG (DYNAMIC DROPDOWN via :Refresh())
+-- UI - HATCH SELECTED EGG (DYNAMIC DROPDOWN)
 -- ======================================
 EggsTab:Section({ Title = "------- Hatch Selected Egg -------" })
 
@@ -770,14 +770,24 @@ EggsTab:Button({
     Callback = function()
         local newCount = scanAndDiscoverEggs()
         local newEggs = getAllEggNames()
+        local oldCount = #eggDropdown.Values
 
-        -- Update dropdown values + refresh
-        eggDropdown.Values = newEggs
-        pcall(function() eggDropdown:Refresh() end)
+        -- Add any new eggs to dd.Values
+        for _, eggName in ipairs(newEggs) do
+            if not table.find(eggDropdown.Values, eggName) then
+                table.insert(eggDropdown.Values, eggName)
+            end
+        end
 
+        -- Trigger WindUI rebuild — makes new items appear in the menu
+        local currentValue = eggDropdown.Value
+        pcall(function() eggDropdown:Select(currentValue) end)
+
+        -- Show status
+        local added = #eggDropdown.Values - oldCount
         local text = "Found " .. #newEggs .. " eggs"
-        if newCount > 0 then
-            text = text .. " (" .. newCount .. " new discovered!)"
+        if added > 0 then
+            text = text .. " (" .. added .. " new discovered!)"
         end
         pcall(function() eggListParagraph:SetDesc(text) end)
         print("[Eggs] Rescan: " .. text)
