@@ -234,12 +234,21 @@ end
 -- ======================================
 local ENCHANT_NAMES = {
     ["super-burst"] = "Burst Blessing",
+    ["super-burst-plus"] = "Burst Blessing+",
     ["super-shiny"] = "Shiny Blessing",
+    ["super-shiny-plus"] = "Shiny Blessing+",
     ["super-luck"] = "Luck Boost",
-    ["super-hatch"] = "Hatch Blessing",
+    ["super-luck-plus"] = "Luck Boost+",
+    ["super-speed"] = "Hatch Blessing",
+    ["super-speed-plus"] = "Hatch Blessing+",
     ["super-bubble"] = "Bubble Machine",
+    ["super-bubble-plus"] = "Bubble Machine+",
     ["super-infinity"] = "Infinity Blessing",
+    ["super-infinity-plus"] = "Infinity Blessing+",
+    ["super-mythic"] = "Mythic Blessing",
+    ["super-mythic-plus"] = "Mythic Blessing+",
     ["super-duplication"] = "Duplication",
+    ["super-duplication-plus"] = "Duplication+",
 }
 
 -- ======================================
@@ -353,7 +362,7 @@ local function getVariantText(v)
 end
 
 -- ======================================
--- PET IMAGE (NEW - demand.gg)
+-- PET IMAGE (demand.gg)
 -- ======================================
 local function getImage(petName, ex)
     local slug = petName:lower():gsub("%s+", "-"):gsub("[^%w%-]", "")
@@ -370,7 +379,7 @@ local function getImage(petName, ex)
 end
 
 -- ======================================
--- ENCHANT IMAGE (NEW - demand.gg)
+-- ENCHANT IMAGE (demand.gg)
 -- ======================================
 local function getEnchantImage(enchantId)
     if not enchantId or enchantId == "" then return nil end
@@ -379,7 +388,7 @@ end
 
 local function getComboEnchantImage(id1, id2)
     if not id1 or not id2 then return nil end
-    return "https://cdn.demand.gg/i/bgsi/enchants/combo-" .. id1 .. "plus" .. id2 .. "/256.webp"
+    return "https://cdn.demand.gg/i/bgsi/enchants/combo-" .. id1 .. id2 .. "/256.webp"
 end
 
 -- ======================================
