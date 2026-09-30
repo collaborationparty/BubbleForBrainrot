@@ -92,8 +92,7 @@ local RARE_EGGS = {
     },
 }
 
-local rareEggsSeen = {}         -- tracks last seen count: [eggName] = number
-local rareEggsNotified = {}     -- tracks whether we already fired for this acquisition
+local rareEggsSeen = {}
 
 -- ======================================
 -- TRUE RARITY DETECTION
@@ -353,13 +352,34 @@ local function getVariantText(v)
     else return "Normal" end
 end
 
+-- ======================================
+-- PET IMAGE (NEW - demand.gg)
+-- ======================================
 local function getImage(petName, ex)
-    local n = petName:lower():gsub("%s+", "-"):gsub("[^%w%-]", "")
+    local slug = petName:lower():gsub("%s+", "-"):gsub("[^%w%-]", "")
     local prefix = ""
-    if ex.Shiny and ex.Mythic then prefix = "shiny-mythic-"
+    if ex.XL and ex.Shiny and ex.Mythic then prefix = "shiny-mythic-xl-"
+    elseif ex.XL and ex.Shiny then prefix = "shiny-xl-"
+    elseif ex.XL and ex.Mythic then prefix = "mythic-xl-"
+    elseif ex.XL then prefix = "xl-"
+    elseif ex.Shiny and ex.Mythic then prefix = "shiny-mythic-"
     elseif ex.Shiny then prefix = "shiny-"
-    elseif ex.Mythic then prefix = "mythic-" end
-    return "https://cdn.bgsi.gg/items/" .. prefix .. n .. ".png"
+    elseif ex.Mythic then prefix = "mythic-"
+    end
+    return "https://cdn.demand.gg/i/bgsi/pets/" .. prefix .. slug .. "/256.webp"
+end
+
+-- ======================================
+-- ENCHANT IMAGE (NEW - demand.gg)
+-- ======================================
+local function getEnchantImage(enchantId)
+    if not enchantId or enchantId == "" then return nil end
+    return "https://cdn.demand.gg/i/bgsi/enchants/" .. enchantId .. "/256.webp"
+end
+
+local function getComboEnchantImage(id1, id2)
+    if not id1 or not id2 then return nil end
+    return "https://cdn.demand.gg/i/bgsi/enchants/combo-" .. id1 .. "plus" .. id2 .. "/256.webp"
 end
 
 -- ======================================
@@ -667,7 +687,6 @@ task.spawn(function()
                 local lastCount = rareEggsSeen[eggName] or 0
                 
                 if currentCount > lastCount then
-                    -- Fire notification
                     local petLines = {}
                     for _, pet in ipairs(eggInfo.pets) do
                         table.insert(petLines, "• " .. pet.name .. " [" .. pet.rarity .. "] | " .. pet.chance .. "%")
@@ -794,15 +813,30 @@ task.spawn(function()
                         local buffStr = getBuffTimesForEmbed()
                         
                         if isSuper then
+                            -- ======================================
+                            -- SUPER LEGENDARY — with enchant image
+                            -- ======================================
                             local enchantNames = {}
                             if pet.Enchants then
                                 for _, enchant in pairs(pet.Enchants) do
                                     if enchant.Id then table.insert(enchantNames, enchant.Id) end
                                 end
                             end
+
                             local displayEnchants = {}
-                            for _, id in ipairs(enchantNames) do table.insert(displayEnchants, ENCHANT_NAMES[id] or id) end
+                            for _, id in ipairs(enchantNames) do
+                                table.insert(displayEnchants, ENCHANT_NAMES[id] or id)
+                            end
                             local displayStr = #displayEnchants > 0 and table.concat(displayEnchants, ", ") or "None"
+
+                            -- Enchant image
+                            local enchantImage = nil
+                            if #enchantNames == 1 then
+                                enchantImage = getEnchantImage(enchantNames[1])
+                            elseif #enchantNames == 2 then
+                                enchantImage = getComboEnchantImage(enchantNames[1], enchantNames[2])
+                            end
+
                             local variant = "Normal"
                             if pet.Shiny and pet.Mythic then variant = "Shiny Mythic"
                             elseif pet.Shiny then variant = "Shiny"
@@ -823,6 +857,8 @@ task.spawn(function()
                                     },
                                     footer = {text = "Renoa The Finest has Blessed You! * "..os.date("%Y-%m-%d %H:%M:%S")}
                                 }
+                                if enchantImage then embed.thumbnail = { url = enchantImage } end
+                                
                                 local pingMsg = "<@"..DISCORD_USER_ID..">"
                                 if displayStr ~= "None" then pingMsg = "<@"..DISCORD_USER_ID..">, You Got "..displayStr.."!" end
                                 
@@ -840,9 +876,13 @@ task.spawn(function()
                                 },
                                 footer = {text = "Renoa The Finest has Blessed You! * "..os.date("%Y-%m-%d %H:%M:%S")}
                             }
+                            if enchantImage then publicEmbed.thumbnail = { url = enchantImage } end
                             table.insert(publicQueue, {embeds = {publicEmbed}})
                             processPublic()
                         else
+                            -- ======================================
+                            -- NORMAL / SECRET / CELESTIAL / INFINITY / VOID / XL
+                            -- ======================================
                             local variant = "Normal"
                             local variantKey = "Normal"
                             if isXL and pet.Shiny and pet.Mythic then variant = "XL Shiny Mythic"; variantKey = "ShinyMythic"
@@ -854,7 +894,7 @@ task.spawn(function()
                             elseif pet.Mythic then variant = "Mythic"; variantKey = "Mythic" end
                             
                             local color = getColorForPet(rarity, variantKey, isXL, origin)
-                            local img = getImage(pet.Name, {Shiny=pet.Shiny, Mythic=pet.Mythic})
+                            local img = getImage(pet.Name, {Shiny=pet.Shiny, Mythic=pet.Mythic, XL=pet.XL})
                             local displayName = hideUsername and "Hidden" or player.Name
                             local coins = formatNum(data.Coins or 0)
                             local gems = formatNum(data.Gems or 0)
@@ -1061,7 +1101,7 @@ WebhookTab:Section({ Title = "Status" })
 
 WebhookTab:Paragraph({
     Title = "Active",
-    Desc = "Tracking: Secret, Celestial, Infinity, Void, Super Legendary, XL\nAlerts: 4x Egg, Rare Inventory Eggs (VOID EGG??, Shadow Realm Egg)\nOnline ping: Every 30 minutes\nStuck detection: Every 2 min, rejoin after 6 min\nFragments + Stats + Buff Times\nOdds Threshold: Private only, XL & Super exempt\nInfinity/Void: ALWAYS notify",
+    Desc = "Tracking: Secret, Celestial, Infinity, Void, Super Legendary, XL\nAlerts: 4x Egg, Rare Inventory Eggs (VOID EGG??, Shadow Realm Egg)\nOnline ping: Every 30 minutes\nStuck detection: Every 2 min, rejoin after 6 min\nFragments + Stats + Buff Times\nOdds Threshold: Private only, XL & Super exempt\nInfinity/Void: ALWAYS notify\nPet images: demand.gg\nEnchant images: demand.gg",
 })
 
 WebhookTab:Paragraph({
