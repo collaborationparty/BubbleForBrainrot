@@ -427,57 +427,55 @@ PetTab:Toggle({
 task.spawn(function()
     task.wait(1.5)
     
-    -- ⚠️ DELIBERATELY NOT AUTO-STARTING DELETE TOGGLES
-    -- Auto Delete T3 and Auto Delete Rarity are DESTRUCTIVE.
-    -- If they auto-start on rejoin, you could lose pets before you realize they're on.
-    -- User must manually toggle them each session.
-    --
-    -- If you WANT them to auto-start, uncomment the blocks below:
-    --
-    -- if petSettings.autoDeleteT3 then
-    --     autoDeleteT3Enabled = true
-    --     autoDeleteT3Thread = task.spawn(function()
-    --         while autoDeleteT3Enabled do
-    --             local data = LocalData:Get()
-    --             if data and data.Pets then
-    --                 for _, pet in pairs(data.Pets) do
-    --                     if not autoDeleteT3Enabled then break end
-    --                     local info = Pets[pet.Name]
-    --                     if isT3Legendary(pet, info) then
-    --                         local amount = pet.Amount or 1
-    --                         deletePet(pet.Id, amount)
-    --                         task.wait(0.5)
-    --                     end
-    --                 end
-    --             end
-    --             task.wait(10)
-    --         end
-    --     end)
-    -- end
-    --
-    -- if petSettings.autoDeleteRarity then
-    --     autoDeleteRarityEnabled = true
-    --     autoDeleteRarityThread = task.spawn(function()
-    --         while autoDeleteRarityEnabled do
-    --             local data = LocalData:Get()
-    --             if data and data.Pets then
-    --                 for _, pet in pairs(data.Pets) do
-    --                     if not autoDeleteRarityEnabled then break end
-    --                     local info = Pets[pet.Name]
-    --                     if shouldDeleteByRarity(pet, info) then
-    --                         local amount = pet.Amount or 1
-    --                         deletePet(pet.Id, amount)
-    --                         task.wait(0.5)
-    --                     end
-    --                 end
-    --             end
-    --             task.wait(10)
-    --         end
-    --     end)
-    -- end
+    -- Auto Delete T3 Legendary
+    if petSettings.autoDeleteT3 then
+        autoDeleteT3Enabled = true
+        autoDeleteT3Thread = task.spawn(function()
+            while autoDeleteT3Enabled do
+                local data = LocalData:Get()
+                
+                if data and data.Pets then
+                    for _, pet in pairs(data.Pets) do
+                        if not autoDeleteT3Enabled then break end
+                        
+                        local info = Pets[pet.Name]
+                        if isT3Legendary(pet, info) then
+                            local amount = pet.Amount or 1
+                            deletePet(pet.Id, amount)
+                            task.wait(0.5)
+                        end
+                    end
+                end
+                
+                task.wait(10)
+            end
+        end)
+    end
     
-    -- NOTE: Auto Rebirth Machine (both manual and All Unlocked) is NOT persisted.
-    -- Their toggles use `Value = false` with no settings save, so they never auto-start.
+    -- Auto Delete Rarity
+    if petSettings.autoDeleteRarity then
+        autoDeleteRarityEnabled = true
+        autoDeleteRarityThread = task.spawn(function()
+            while autoDeleteRarityEnabled do
+                local data = LocalData:Get()
+                
+                if data and data.Pets then
+                    for _, pet in pairs(data.Pets) do
+                        if not autoDeleteRarityEnabled then break end
+                        
+                        local info = Pets[pet.Name]
+                        if shouldDeleteByRarity(pet, info) then
+                            local amount = pet.Amount or 1
+                            deletePet(pet.Id, amount)
+                            task.wait(0.5)
+                        end
+                    end
+                end
+                
+                task.wait(10)
+            end
+        end)
+    end
     
     print("[Pets] Auto-started saved toggles!")
 end)
