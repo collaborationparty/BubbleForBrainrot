@@ -89,6 +89,15 @@ local EGG_WORLDS = {
 
 local discoveredEggs = {}
 
+-- Restore saved discovered eggs from settings
+if eggSettings.discoveredEggs then
+    for name, posData in pairs(eggSettings.discoveredEggs) do
+        if type(posData) == "table" and #posData == 3 then
+            discoveredEggs[name] = Vector3.new(posData[1], posData[2], posData[3])
+        end
+    end
+end
+
 -- ======================================
 -- INVENTORY EGGS LIST
 -- ======================================
@@ -124,13 +133,14 @@ local function isPlaceholderEgg(name)
     return name == "Egg" or name == "ShadowEgg" or name == "CelestialEgg"
 end
 
+-- Scan current world — returns fresh list (doesn't merge with saved)
 local function scanAndDiscoverEggs()
-    local newCount = 0
+    local found = {}
     local rendered = workspace:FindFirstChild("Rendered")
-    if not rendered then return 0 end
+    if not rendered then return found end
 
     local generic = rendered:FindFirstChild("Generic")
-    if not generic then return 0 end
+    if not generic then return found end
 
     for _, obj in ipairs(generic:GetChildren()) do
         if obj:IsA("Model") and obj.Name:lower():find("egg") then
@@ -140,25 +150,14 @@ local function scanAndDiscoverEggs()
             if is4xEgg(name) then continue end
             if isPlaceholderEgg(name) then continue end
 
-            if not EGG_LOCATIONS[name] and not discoveredEggs[name] then
-                local ok, pivot = pcall(function() return obj:GetPivot() end)
-                if ok and pivot then
-                    local pos = pivot.Position
-                    discoveredEggs[name] = pos
-                    newCount = newCount + 1
-                    print("[Eggs] Discovered: " .. name .. " @ (" .. 
-                        math.floor(pos.X) .. ", " .. math.floor(pos.Y) .. ", " .. math.floor(pos.Z) .. ")")
-                end
-            elseif discoveredEggs[name] then
-                local ok, pivot = pcall(function() return obj:GetPivot() end)
-                if ok and pivot then
-                    discoveredEggs[name] = pivot.Position
-                end
+            local ok, pivot = pcall(function() return obj:GetPivot() end)
+            if ok and pivot then
+                found[name] = pivot.Position
             end
         end
     end
 
-    return newCount
+    return found
 end
 
 -- ======================================
@@ -743,10 +742,6 @@ EggsTab:Toggle({
 -- ======================================
 EggsTab:Section({ Title = "------- Hatch Selected Egg -------" })
 
--- Initial scan
-scanAndDiscoverEggs()
-
--- Create dropdown ONCE
 local eggDropdown = EggsTab:Dropdown({
     Title = "Select Egg",
     Values = getAllEggNames(),
@@ -766,28 +761,40 @@ local eggListParagraph = EggsTab:Paragraph({
 
 EggsTab:Button({
     Title = "Re Scan The Egg Dropdown",
-    Desc = "Auto-discovers new eggs from the world",
+    Desc = "Auto-discovers new eggs from the world (replaces saved list)",
     Callback = function()
-        local newCount = scanAndDiscoverEggs()
-        local newEggs = getAllEggNames()
-        local oldCount = #eggDropdown.Values
+        -- Scan current world
+        local found = scanAndDiscoverEggs()
+        local newCount = 0
 
-        -- Add any new eggs to dd.Values
-        for _, eggName in ipairs(newEggs) do
-            if not table.find(eggDropdown.Values, eggName) then
-                table.insert(eggDropdown.Values, eggName)
+        -- REPLACE discovered eggs with fresh scan
+        discoveredEggs = {}
+        for name, pos in pairs(found) do
+            discoveredEggs[name] = pos
+            if not EGG_LOCATIONS[name] then
+                newCount = newCount + 1
+                print("[Eggs] Discovered: " .. name)
             end
         end
 
-        -- Trigger WindUI rebuild — makes new items appear in the menu
-        local currentValue = eggDropdown.Value
-        pcall(function() eggDropdown:Select(currentValue) end)
+        -- Save to settings (replace old saved list)
+        eggSettings.discoveredEggs = {}
+        for name, pos in pairs(discoveredEggs) do
+            eggSettings.discoveredEggs[name] = {pos.X, pos.Y, pos.Z}
+        end
+        getgenv().HubSettings.eggs = eggSettings
+        saveHubSettings()
 
-        -- Show status
-        local added = #eggDropdown.Values - oldCount
+        -- Rebuild dropdown with fresh list
+        local newEggs = getAllEggNames()
+        eggDropdown.Values = newEggs
+        pcall(function() eggDropdown:Refresh() end)
+
         local text = "Found " .. #newEggs .. " eggs"
-        if added > 0 then
-            text = text .. " (" .. added .. " new discovered!)"
+        if newCount > 0 then
+            text = text .. " (" .. newCount .. " new discovered + saved!)"
+        else
+            text = text .. " (saved list refreshed)"
         end
         pcall(function() eggListParagraph:SetDesc(text) end)
         print("[Eggs] Rescan: " .. text)
