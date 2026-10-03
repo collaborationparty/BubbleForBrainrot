@@ -177,8 +177,6 @@ RiftTab:Toggle({
         if v then
             seasonThread = task.spawn(function()
                 while seasonRunning do
-                    getgenv().ActivityStatus.current = "Opening Season Chest"
-                    getgenv().ActivityStatus.trigger = true
                     pcall(function() Remote:FireServer("UnlockEventChest", "Season Chest", false) end)
                     task.wait(1)
                 end
@@ -200,8 +198,6 @@ RiftTab:Toggle({
         if v then
             giantThread = task.spawn(function()
                 while giantRunning do
-                    getgenv().ActivityStatus.current = "Opening Giant Chest"
-                    getgenv().ActivityStatus.trigger = true
                     pcall(function() Remote:FireServer("ClaimChest", "Giant Chest") end)
                     task.wait(1)
                 end
@@ -223,8 +219,6 @@ RiftTab:Toggle({
         if v then
             voidThread = task.spawn(function()
                 while voidRunning do
-                    getgenv().ActivityStatus.current = "Opening Void Chest"
-                    getgenv().ActivityStatus.trigger = true
                     pcall(function() Remote:FireServer("ClaimChest", "Void Chest") end)
                     task.wait(1)
                 end
@@ -246,8 +240,6 @@ RiftTab:Toggle({
         if v then
             ticketThread = task.spawn(function()
                 while ticketRunning do
-                    getgenv().ActivityStatus.current = "Opening Ticket Chest"
-                    getgenv().ActivityStatus.trigger = true
                     pcall(function() Remote:FireServer("ClaimChest", "Ticket Chest") end)
                     task.wait(1)
                 end
@@ -270,8 +262,6 @@ RiftTab:Toggle({
         if v then
             claimAllThread = task.spawn(function()
                 while claimAllRunning do
-                    getgenv().ActivityStatus.current = "Opening all World Chests"
-                    getgenv().ActivityStatus.trigger = true
                     pcall(function() Remote:FireServer("UnlockEventChest", "Season Chest", false) end)
                     pcall(function() Remote:FireServer("ClaimChest", "Giant Chest") end)
                     pcall(function() Remote:FireServer("ClaimChest", "Void Chest") end)
