@@ -69,7 +69,7 @@ local selectedUpgrades = eventSettings.selectedUpgrades or {}
 if type(selectedUpgrades) == "string" then selectedUpgrades = {selectedUpgrades} end
 
 -- ======================================
--- REBIRTH SHOP (14 items)
+-- REBIRTH SHOP (16 items)
 -- ======================================
 local REBIRTH_SHOP_ITEMS = {
     "Lucky Lvl 7",
@@ -78,21 +78,23 @@ local REBIRTH_SHOP_ITEMS = {
     "Infinity Elixir x25",
     "Secret Elixir x25",
     "Ultra Infinity Elixir x25",
+    "Autumn Infinity Elixir x10",
     "Purple Fragment",
     "Rainbow Fragment",
     "Shrine Ticket",
     "Autumn Elixir Lvl 4 x10",
-    "Sinister Jack O' Lantern",
+    "XL Sinister Jack O' Lantern",
     "Illusionary King Mush",
-    "Illusionary King Mush Mythic",
-    "Illusionary King Mush XL",
+    "Mythic Illusionary King Mush",
+    "XL Illusionary King Mush",
+    "P U F F",
 }
 
 local selectedRebirthItems = eventSettings.selectedRebirthItems or {}
 if type(selectedRebirthItems) == "string" then selectedRebirthItems = {selectedRebirthItems} end
 
 -- ======================================
--- AUTUMN SHOP (13 items)
+-- AUTUMN SHOP (14 items)
 -- ======================================
 local AUTUMN_SHOP_ITEMS = {
     "Autumn Elixir Lvl 4",
@@ -103,11 +105,12 @@ local AUTUMN_SHOP_ITEMS = {
     "Infinity Elixir",
     "Secret Elixir",
     "Ultra Infinity Elixir",
+    "Autumn Infinity Elixir",
     "Green Fragment",
     "Blue Fragment",
     "Boost Crystal",
     "Angelic Pumpkin",
-    "Angelic Pumpkin XL",
+    "XL Angelic Pumpkin",
 }
 
 local selectedShopItems = eventSettings.selectedShopItems or {}
