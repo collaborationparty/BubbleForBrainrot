@@ -274,6 +274,10 @@ local function startMinigameLoop()
     local targetMinigame = selectedMinigame
     local targetDifficulty = selectedDifficulty
 
+    -- ActivityStatus webhook
+    getgenv().ActivityStatus.current = "Auto Start " .. targetMinigame .. " Minigame"
+    getgenv().ActivityStatus.trigger = true
+
     autoMinigameThread = task.spawn(function()
         minigameLoop(myLoopId, targetMinigame, targetDifficulty)
     end)
@@ -285,6 +289,91 @@ local function stopMinigameLoop()
     if autoMinigameThread then
         pcall(function() task.cancel(autoMinigameThread) end)
         autoMinigameThread = nil
+    end
+end
+
+-- ======================================
+-- HIDE SCREENS SETUP
+-- ======================================
+local HIDE_TARGETS = {"TeleportingGui", "TransitionGui", "LoadingGui"}
+local hookedGuis = {}
+local hideScreensRunning = false
+local hideScreensConnections = {}
+
+local function hookGuiForHiding(gui)
+    if hookedGuis[gui] then return end
+    hookedGuis[gui] = true
+
+    -- Instant hide on Enabled change
+    local conn = gui:GetPropertyChangedSignal("Enabled"):Connect(function()
+        if gui.Enabled then
+            gui.Enabled = false
+        end
+    end)
+    table.insert(hideScreensConnections, conn)
+
+    -- Also hook ChildAdded
+    local conn2 = gui.ChildAdded:Connect(function()
+        task.wait()
+        if gui.Enabled then
+            gui.Enabled = false
+        end
+    end)
+    table.insert(hideScreensConnections, conn2)
+
+    -- Hide immediately
+    if gui.Enabled then
+        gui.Enabled = false
+    end
+end
+
+local function unhookAllGuis()
+    for _, conn in ipairs(hideScreensConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    hideScreensConnections = {}
+    hookedGuis = {}
+end
+
+local function startHideScreens()
+    if hideScreensRunning then return end
+    hideScreensRunning = true
+
+    local pg = player:WaitForChild("PlayerGui")
+
+    -- Hook existing GUIs
+    for _, name in ipairs(HIDE_TARGETS) do
+        local gui = pg:FindFirstChild(name)
+        if gui then
+            hookGuiForHiding(gui)
+        end
+    end
+
+    -- Hook new GUIs (in case they get recreated)
+    local pgConn = pg.ChildAdded:Connect(function(child)
+        for _, name in ipairs(HIDE_TARGETS) do
+            if child.Name == name then
+                task.wait(0.05)
+                hookGuiForHiding(child)
+            end
+        end
+    end)
+    table.insert(hideScreensConnections, pgConn)
+end
+
+local function stopHideScreens()
+    hideScreensRunning = false
+    unhookAllGuis()
+
+    -- Restore GUIs
+    local pg = player:FindFirstChild("PlayerGui")
+    if pg then
+        for _, name in ipairs(HIDE_TARGETS) do
+            local gui = pg:FindFirstChild(name)
+            if gui then
+                pcall(function() gui.Enabled = true end)
+            end
+        end
     end
 end
 
@@ -389,6 +478,27 @@ DiceBoardTab:Toggle({
 })
 
 -- ======================================
+-- UI - HIDE SCREENS
+-- ======================================
+DiceBoardTab:Section({ Title = "Hide Screens" })
+
+DiceBoardTab:Toggle({
+    Title = "Hide Teleporting / Returning Home / Loading Screens",
+    Desc = "Instantly hides transition GUIs during minigames",
+    Value = diceSettings.hideScreens or false,
+    Callback = function(v)
+        diceSettings.hideScreens = v
+        getgenv().HubSettings.diceboard = diceSettings
+        saveHubSettings()
+        if v then
+            startHideScreens()
+        else
+            stopHideScreens()
+        end
+    end,
+})
+
+-- ======================================
 -- AUTO-START SAVED TOGGLES
 -- ======================================
 task.spawn(function()
@@ -400,6 +510,10 @@ task.spawn(function()
 
     if diceSettings.autoMinigame then
         startMinigameLoop()
+    end
+
+    if diceSettings.hideScreens then
+        startHideScreens()
     end
 end)
 
