@@ -1,11 +1,11 @@
 -- ================================================
--- DICE BOARD TAB (WINDUI VERSION)
+-- MINIGAME TAB (WINDUI VERSION)
 -- ================================================
 repeat task.wait() until getgenv().Window
 local Window = getgenv().Window
 local WindUI = getgenv().WindUI
 
-local DiceBoardTab = Window:Tab({ Title = "Dice Board", Icon = "dice-5" })
+local DiceBoardTab = Window:Tab({ Title = "Minigame", Icon = "gamepad-2" })
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -214,7 +214,6 @@ local function minigameLoop()
         local remaining = getMinigameCooldownRemaining(selectedMinigame)
 
         if remaining > 0 then
-            -- Try to skip with Super Ticket if enabled
             if diceSettings.autoSuperTicket then
                 local tickets = getSuperTicketCount()
                 if tickets > 0 then
@@ -224,17 +223,14 @@ local function minigameLoop()
                     task.wait(1.5)
                     remaining = getMinigameCooldownRemaining(selectedMinigame)
                     if remaining > 0 then
-                        -- Skip didn't work, wait
-                        task.wait(5)
+                        task.wait(2)
                         continue
                     end
                 else
-                    -- No tickets, wait
                     task.wait(5)
                     continue
                 end
             else
-                -- Wait for natural cooldown
                 task.wait(5)
                 continue
             end
@@ -244,13 +240,24 @@ local function minigameLoop()
         pcall(function()
             Remote:FireServer("StartMinigame", selectedMinigame, selectedDifficulty)
         end)
-        task.wait(2)
+        task.wait(1)
 
-        -- Finish minigame
-        pcall(function()
-            Remote:FireServer("FinishMinigame")
-        end)
-        task.wait(3)
+        -- Spam FinishMinigame until cooldown gets set (= game accepted)
+        local attempts = 0
+        while autoMinigameRunning and attempts < 30 do
+            attempts = attempts + 1
+            pcall(function()
+                Remote:FireServer("FinishMinigame")
+            end)
+            task.wait(0.3)
+
+            local cd = getMinigameCooldownRemaining(selectedMinigame)
+            if cd > 0 then
+                break
+            end
+        end
+
+        task.wait(2)
     end
 end
 
@@ -375,4 +382,4 @@ task.spawn(function()
     end
 end)
 
-print("[Dice Board] Loaded!")
+print("[Minigame] Loaded!")
