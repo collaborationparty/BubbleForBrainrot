@@ -12,6 +12,8 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
 local Board = require(ReplicatedStorage.Client.Gui.Frames.Board)
+local Remote = require(ReplicatedStorage.Shared.Framework.Network.Remote)
+local LocalData = require(ReplicatedStorage.Client.Framework.Services.LocalData)
 
 -- ======================================
 -- LOAD SAVED SETTINGS
@@ -152,9 +154,6 @@ local function loop()
     end
 end
 
--- ======================================
--- AUTO-START LOGIC
--- ======================================
 local function startDiceLoop()
     if running then return end
     running = true
@@ -174,7 +173,103 @@ local function stopDiceLoop()
 end
 
 -- ======================================
--- UI
+-- MINIGAME SETUP
+-- ======================================
+local MINIGAMES = {
+    "Cart Escape",
+    "Hyper Darts",
+    "Pet Match",
+    "Circus Pet Match",
+}
+
+local DIFFICULTIES = {"Easy", "Medium", "Hard", "Insane"}
+
+local selectedMinigame = diceSettings.selectedMinigame or "Cart Escape"
+local selectedDifficulty = diceSettings.selectedDifficulty or "Easy"
+local autoMinigameRunning = false
+local autoMinigameThread = nil
+
+local function getMinigameCooldownRemaining(minigameName)
+    local data = LocalData:Get()
+    if data and data.Cooldowns then
+        local cd = data.Cooldowns[minigameName]
+        if cd then
+            return math.max(0, cd - os.time())
+        end
+    end
+    return 0
+end
+
+local function getSuperTicketCount()
+    local data = LocalData:Get()
+    if data and data.Powerups then
+        return data.Powerups["Super Ticket"] or 0
+    end
+    return 0
+end
+
+local function minigameLoop()
+    while autoMinigameRunning do
+        -- Check cooldown
+        local remaining = getMinigameCooldownRemaining(selectedMinigame)
+
+        if remaining > 0 then
+            -- Try to skip with Super Ticket if enabled
+            if diceSettings.autoSuperTicket then
+                local tickets = getSuperTicketCount()
+                if tickets > 0 then
+                    pcall(function()
+                        Remote:FireServer("SkipMinigameCooldown", selectedMinigame)
+                    end)
+                    task.wait(1.5)
+                    remaining = getMinigameCooldownRemaining(selectedMinigame)
+                    if remaining > 0 then
+                        -- Skip didn't work, wait
+                        task.wait(5)
+                        continue
+                    end
+                else
+                    -- No tickets, wait
+                    task.wait(5)
+                    continue
+                end
+            else
+                -- Wait for natural cooldown
+                task.wait(5)
+                continue
+            end
+        end
+
+        -- Start minigame
+        pcall(function()
+            Remote:FireServer("StartMinigame", selectedMinigame, selectedDifficulty)
+        end)
+        task.wait(2)
+
+        -- Finish minigame
+        pcall(function()
+            Remote:FireServer("FinishMinigame")
+        end)
+        task.wait(3)
+    end
+end
+
+local function startMinigameLoop()
+    if autoMinigameRunning then return end
+    autoMinigameRunning = true
+    autoMinigameThread = task.spawn(minigameLoop)
+end
+
+local function stopMinigameLoop()
+    autoMinigameRunning = false
+    if autoMinigameThread then
+        task.cancel(autoMinigameThread)
+        autoMinigameThread = nil
+    end
+end
+
+-- ======================================
+-- UI - SETTINGS
 -- ======================================
 DiceBoardTab:Section({ Title = "Settings" })
 
@@ -210,12 +305,73 @@ DiceBoardTab:Toggle({
 })
 
 -- ======================================
--- AUTO-START SAVED TOGGLE
+-- UI - AUTO MINIGAME
+-- ======================================
+DiceBoardTab:Section({ Title = "Auto Minigame" })
+
+DiceBoardTab:Dropdown({
+    Title = "Select Minigame",
+    Values = MINIGAMES,
+    Value = selectedMinigame,
+    Callback = function(v)
+        selectedMinigame = v
+        diceSettings.selectedMinigame = v
+        getgenv().HubSettings.diceboard = diceSettings
+        saveHubSettings()
+    end,
+})
+
+DiceBoardTab:Dropdown({
+    Title = "Select Difficulty",
+    Values = DIFFICULTIES,
+    Value = selectedDifficulty,
+    Callback = function(v)
+        selectedDifficulty = v
+        diceSettings.selectedDifficulty = v
+        getgenv().HubSettings.diceboard = diceSettings
+        saveHubSettings()
+    end,
+})
+
+DiceBoardTab:Toggle({
+    Title = "Auto Play Minigame",
+    Desc = "Plays the selected minigame on repeat",
+    Value = diceSettings.autoMinigame or false,
+    Callback = function(v)
+        diceSettings.autoMinigame = v
+        getgenv().HubSettings.diceboard = diceSettings
+        saveHubSettings()
+        if v then
+            startMinigameLoop()
+        else
+            stopMinigameLoop()
+        end
+    end,
+})
+
+DiceBoardTab:Toggle({
+    Title = "Use Super Ticket to Skip Cooldown",
+    Desc = "Automatically uses Super Ticket when on cooldown",
+    Value = diceSettings.autoSuperTicket or false,
+    Callback = function(v)
+        diceSettings.autoSuperTicket = v
+        getgenv().HubSettings.diceboard = diceSettings
+        saveHubSettings()
+    end,
+})
+
+-- ======================================
+-- AUTO-START SAVED TOGGLES
 -- ======================================
 task.spawn(function()
-    task.wait(1)
+    task.wait(1.5)
+
     if diceSettings.autoDice then
         startDiceLoop()
+    end
+
+    if diceSettings.autoMinigame then
+        startMinigameLoop()
     end
 end)
 
