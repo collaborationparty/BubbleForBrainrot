@@ -188,6 +188,7 @@ local selectedMinigame = diceSettings.selectedMinigame or "Cart Escape"
 local selectedDifficulty = diceSettings.selectedDifficulty or "Easy"
 local autoMinigameRunning = false
 local autoMinigameThread = nil
+local currentLoopId = 0
 
 local function getMinigameCooldownRemaining(minigameName)
     local data = LocalData:Get()
@@ -208,20 +209,19 @@ local function getSuperTicketCount()
     return 0
 end
 
-local function minigameLoop()
-    while autoMinigameRunning do
-        -- Check cooldown
-        local remaining = getMinigameCooldownRemaining(selectedMinigame)
+local function minigameLoop(myLoopId, targetMinigame, targetDifficulty)
+    while autoMinigameRunning and currentLoopId == myLoopId do
+        local remaining = getMinigameCooldownRemaining(targetMinigame)
 
         if remaining > 0 then
             if diceSettings.autoSuperTicket then
                 local tickets = getSuperTicketCount()
                 if tickets > 0 then
                     pcall(function()
-                        Remote:FireServer("SkipMinigameCooldown", selectedMinigame)
+                        Remote:FireServer("SkipMinigameCooldown", targetMinigame)
                     end)
                     task.wait(1.5)
-                    remaining = getMinigameCooldownRemaining(selectedMinigame)
+                    remaining = getMinigameCooldownRemaining(targetMinigame)
                     if remaining > 0 then
                         task.wait(2)
                         continue
@@ -238,20 +238,20 @@ local function minigameLoop()
 
         -- Start minigame
         pcall(function()
-            Remote:FireServer("StartMinigame", selectedMinigame, selectedDifficulty)
+            Remote:FireServer("StartMinigame", targetMinigame, targetDifficulty)
         end)
         task.wait(1)
 
-        -- Spam FinishMinigame until cooldown gets set (= game accepted)
+        -- Spam FinishMinigame until cooldown set
         local attempts = 0
-        while autoMinigameRunning and attempts < 30 do
+        while autoMinigameRunning and currentLoopId == myLoopId and attempts < 30 do
             attempts = attempts + 1
             pcall(function()
                 Remote:FireServer("FinishMinigame")
             end)
             task.wait(0.3)
 
-            local cd = getMinigameCooldownRemaining(selectedMinigame)
+            local cd = getMinigameCooldownRemaining(targetMinigame)
             if cd > 0 then
                 break
             end
@@ -262,15 +262,28 @@ local function minigameLoop()
 end
 
 local function startMinigameLoop()
-    if autoMinigameRunning then return end
+    if autoMinigameRunning then
+        autoMinigameRunning = false
+        currentLoopId = currentLoopId + 1
+        task.wait(0.5)
+    end
+
     autoMinigameRunning = true
-    autoMinigameThread = task.spawn(minigameLoop)
+    currentLoopId = currentLoopId + 1
+    local myLoopId = currentLoopId
+    local targetMinigame = selectedMinigame
+    local targetDifficulty = selectedDifficulty
+
+    autoMinigameThread = task.spawn(function()
+        minigameLoop(myLoopId, targetMinigame, targetDifficulty)
+    end)
 end
 
 local function stopMinigameLoop()
     autoMinigameRunning = false
+    currentLoopId = currentLoopId + 1
     if autoMinigameThread then
-        task.cancel(autoMinigameThread)
+        pcall(function() task.cancel(autoMinigameThread) end)
         autoMinigameThread = nil
     end
 end
@@ -325,6 +338,10 @@ DiceBoardTab:Dropdown({
         diceSettings.selectedMinigame = v
         getgenv().HubSettings.diceboard = diceSettings
         saveHubSettings()
+
+        if autoMinigameRunning then
+            startMinigameLoop()
+        end
     end,
 })
 
@@ -337,6 +354,10 @@ DiceBoardTab:Dropdown({
         diceSettings.selectedDifficulty = v
         getgenv().HubSettings.diceboard = diceSettings
         saveHubSettings()
+
+        if autoMinigameRunning then
+            startMinigameLoop()
+        end
     end,
 })
 
