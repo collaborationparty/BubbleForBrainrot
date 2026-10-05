@@ -785,10 +785,18 @@ EggsTab:Button({
         getgenv().HubSettings.eggs = eggSettings
         saveHubSettings()
 
-        -- Rebuild dropdown with fresh list
+        -- Mutate eggDropdown.Values IN PLACE (don't reassign)
         local newEggs = getAllEggNames()
-        eggDropdown.Values = newEggs
-        pcall(function() eggDropdown:Refresh() end)
+        for i = #eggDropdown.Values, 1, -1 do
+            eggDropdown.Values[i] = nil
+        end
+        for _, eggName in ipairs(newEggs) do
+            table.insert(eggDropdown.Values, eggName)
+        end
+
+        -- Trigger WindUI rebuild
+        local currentValue = eggDropdown.Value
+        pcall(function() eggDropdown:Select(currentValue) end)
 
         local text = "Found " .. #newEggs .. " eggs"
         if newCount > 0 then
