@@ -677,6 +677,66 @@ task.spawn(function()
 end)
 
 -- ======================================
+-- INVENTORY FULL DETECTOR
+-- ======================================
+local wasFullNotified = false
+
+task.spawn(function()
+    while true do
+        task.wait(3)
+
+        local pg = player:FindFirstChild("PlayerGui")
+        local sg = pg and pg:FindFirstChild("ScreenGui")
+        local prompt = sg and sg:FindFirstChild("Prompt")
+
+        if prompt and prompt.Visible then
+            local topTitle = prompt.Frame
+                and prompt.Frame:FindFirstChild("Top")
+                and prompt.Frame.Top:FindFirstChild("Title")
+                and prompt.Frame.Top.Title:FindFirstChild("Label")
+
+            local isFullPopup = topTitle and topTitle.Text == "No space!"
+
+            if isFullPopup then
+                local ownedLabel = prompt.Frame
+                    and prompt.Frame:FindFirstChild("Gamepass")
+                    and prompt.Frame.Gamepass:FindFirstChild("Buy")
+                    and prompt.Frame.Gamepass.Buy:FindFirstChild("Owned")
+
+                local hasDigitalStorage = ownedLabel and ownedLabel.Visible and ownedLabel.Text == "Owned"
+
+                if not wasFullNotified and not hasDigitalStorage then
+                    wasFullNotified = true
+
+                    if HATCH_WEBHOOK_URL ~= "" then
+                        local pingMsg = ""
+                        if DISCORD_USER_ID ~= "" then
+                            pingMsg = "<@" .. DISCORD_USER_ID .. "> "
+                        end
+
+                        table.insert(hatchQueue, {
+                            content = pingMsg .. "⚠️ Inventory Full!",
+                            embeds = {{
+                                title = "⚠️ INVENTORY FULL!",
+                                description = "**" .. player.Name .. "**'s pet inventory is full!\n\nHatching is blocked until pets are cleared.\n\nConsider unlocking **Digital Storage** to avoid this.",
+                                color = 0xFF0000,
+                                footer = {text = "Renoa Hub * " .. os.date("%Y-%m-%d %H:%M:%S")}
+                            }}
+                        })
+                        processHatch()
+
+                        getgenv().ActivityStatus.current = "⚠️ Inventory Full!"
+                        getgenv().ActivityStatus.trigger = true
+                    end
+                end
+            end
+        else
+            wasFullNotified = false
+        end
+    end
+end)
+
+-- ======================================
 -- RARE EGG SCANNER
 -- ======================================
 task.spawn(function()
@@ -822,9 +882,6 @@ task.spawn(function()
                         local buffStr = getBuffTimesForEmbed()
                         
                         if isSuper then
-                            -- ======================================
-                            -- SUPER LEGENDARY — with enchant image
-                            -- ======================================
                             local enchantNames = {}
                             if pet.Enchants then
                                 for _, enchant in pairs(pet.Enchants) do
@@ -838,9 +895,7 @@ task.spawn(function()
                             end
                             local displayStr = #displayEnchants > 0 and table.concat(displayEnchants, ", ") or "None"
 
-                            -- Enchant image
-                            local enchantImage = nil
-                            if #enchantNames == 1 then
+                            local enchantImage = nil                            if #enchantNames == 1 then
                                 enchantImage = getEnchantImage(enchantNames[1])
                             elseif #enchantNames == 2 then
                                 enchantImage = getComboEnchantImage(enchantNames[1], enchantNames[2])
@@ -889,9 +944,6 @@ task.spawn(function()
                             table.insert(publicQueue, {embeds = {publicEmbed}})
                             processPublic()
                         else
-                            -- ======================================
-                            -- NORMAL / SECRET / CELESTIAL / INFINITY / VOID / XL
-                            -- ======================================
                             local variant = "Normal"
                             local variantKey = "Normal"
                             if isXL and pet.Shiny and pet.Mythic then variant = "XL Shiny Mythic"; variantKey = "ShinyMythic"
@@ -1110,7 +1162,7 @@ WebhookTab:Section({ Title = "Status" })
 
 WebhookTab:Paragraph({
     Title = "Active",
-    Desc = "Tracking: Secret, Celestial, Infinity, Void, Super Legendary, XL\nAlerts: 4x Egg, Rare Inventory Eggs (VOID EGG??, Shadow Realm Egg)\nOnline ping: Every 30 minutes\nStuck detection: Every 2 min, rejoin after 6 min\nFragments + Stats + Buff Times\nOdds Threshold: Private only, XL & Super exempt\nInfinity/Void: ALWAYS notify\nPet images: demand.gg\nEnchant images: demand.gg",
+    Desc = "Tracking: Secret, Celestial, Infinity, Void, Super Legendary, XL\nAlerts: 4x Egg, Rare Inventory Eggs (VOID EGG??, Shadow Realm Egg), Inventory Full\nOnline ping: Every 30 minutes\nStuck detection: Every 2 min, rejoin after 6 min\nFragments + Stats + Buff Times\nOdds Threshold: Private only, XL & Super exempt\nInfinity/Void: ALWAYS notify\nPet images: demand.gg\nEnchant images: demand.gg",
 })
 
 WebhookTab:Paragraph({
