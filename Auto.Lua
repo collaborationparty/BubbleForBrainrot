@@ -84,6 +84,12 @@ local forfeitThread = nil
 -- Fishing
 local fishRunning = false
 
+-- Mastery
+local MASTERY_CATEGORIES = {"Shops", "Buffs", "Minigames", "Rifts", "Pets"}
+local selectedMastery = autoSettings.selectedMastery or "Shops"
+local masteryRunning = false
+local masteryThread = nil
+
 -- ======================================
 -- GET BOXES
 -- ======================================
@@ -499,6 +505,27 @@ local function stopAutoFishing()
 end
 
 -- ======================================
+-- MASTERY
+-- ======================================
+local function startAutoMastery()
+    if masteryThread then return end
+    masteryRunning = true
+    masteryThread = task.spawn(function()
+        while masteryRunning do
+            pcall(function()
+                RE:FireServer("UpgradeMastery", selectedMastery)
+            end)
+            task.wait(1)
+        end
+    end)
+end
+
+local function stopAutoMastery()
+    masteryRunning = false
+    if masteryThread then task.cancel(masteryThread); masteryThread = nil end
+end
+
+-- ======================================
 -- UI - PRESENT RAIN
 -- ======================================
 AutoTab:Section({ Title = "Present Rain" })
@@ -881,6 +908,35 @@ AutoTab:Toggle({
 })
 
 -- ======================================
+-- UI - AUTO MASTERY
+-- ======================================
+AutoTab:Section({ Title = "Auto Mastery" })
+
+AutoTab:Dropdown({
+    Title = "Select Mastery",
+    Values = MASTERY_CATEGORIES,
+    Value = selectedMastery,
+    Callback = function(v)
+        selectedMastery = v
+        autoSettings.selectedMastery = v
+        getgenv().HubSettings.auto = autoSettings
+        saveHubSettings()
+    end,
+})
+
+AutoTab:Toggle({
+    Title = "Auto Upgrade Mastery",
+    Desc = "Continuously upgrades the selected mastery category",
+    Value = autoSettings.autoMastery or false,
+    Callback = function(v)
+        autoSettings.autoMastery = v
+        getgenv().HubSettings.auto = autoSettings
+        saveHubSettings()
+        if v then startAutoMastery() else stopAutoMastery() end
+    end,
+})
+
+-- ======================================
 -- UI - AUTO OPEN BOX
 -- ======================================
 AutoTab:Section({ Title = "Auto Open Box" })
@@ -962,6 +1018,7 @@ task.spawn(function()
     if autoSettings.autoPlaytime then startAutoPlaytime() end
     if autoSettings.autoOpenBox then startAutoBox() end
     if autoSettings.autoFishing then startAutoFishing() end
+    if autoSettings.autoMastery then startAutoMastery() end
     
     if autoSettings.autoPickup then
         pickupEnabled = true
