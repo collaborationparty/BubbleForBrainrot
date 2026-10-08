@@ -13,6 +13,7 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local constants = require(ReplicatedStorage.Shared.Constants)
 local LocalData = require(ReplicatedStorage.Client.Framework.Services.LocalData)
+local MasteryData = require(ReplicatedStorage.Shared.Data.Mastery)
 
 local RE = ReplicatedStorage.Shared.Framework.Network.Remote.RemoteEvent
 
@@ -512,10 +513,24 @@ local function startAutoMastery()
     masteryRunning = true
     masteryThread = task.spawn(function()
         while masteryRunning do
-            pcall(function()
-                RE:FireServer("UpgradeMastery", selectedMastery)
-            end)
-            task.wait(1)
+            local data = LocalData:Get()
+            local upgradesList = MasteryData.Upgrades[selectedMastery]
+
+            if upgradesList then
+                local maxLevel = #upgradesList
+                local currentLevel = (data and data.MasteryLevels and data.MasteryLevels[selectedMastery]) or 0
+
+                if currentLevel >= maxLevel then
+                    masteryRunning = false
+                    break
+                end
+
+                pcall(function()
+                    RE:FireServer("UpgradeMastery", selectedMastery)
+                end)
+            end
+
+            task.wait(2)
         end
     end)
 end
@@ -926,7 +941,7 @@ AutoTab:Dropdown({
 
 AutoTab:Toggle({
     Title = "Auto Upgrade Mastery",
-    Desc = "Continuously upgrades the selected mastery category",
+    Desc = "Continuously upgrades until max (auto-stops when full)",
     Value = autoSettings.autoMastery or false,
     Callback = function(v)
         autoSettings.autoMastery = v
