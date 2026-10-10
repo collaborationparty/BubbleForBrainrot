@@ -63,6 +63,7 @@ local claimAllThread = nil
 -- FUNCTIONS
 -- ======================================
 local function summonAndOpen(riftKey, world, chestName)
+    -- 1. Summon rift
     pcall(function()
         RemoteFunction:InvokeServer("SummonRift", {
             ["Time"] = 5,
@@ -72,29 +73,41 @@ local function summonAndOpen(riftKey, world, chestName)
         })
     end)
     task.wait(3)
-    
+
+    -- 2. Find spawned rift
+    local rendered = workspace:FindFirstChild("Rendered")
+    local rifts = rendered and rendered:FindFirstChild("Rifts")
+    local rift = rifts and rifts:FindFirstChild(riftKey)
+
+    if not rift then return end
+
     getgenv().ActivityStatus.current = "Teleporting to " .. chestName
     getgenv().ActivityStatus.trigger = true
-    
-    pcall(function() Remote:FireServer("TeleportToRift", riftKey) end)
+
+    -- 3. Get Chest.Inner position
+    local chest = rift:FindFirstChild("Chest")
+    local inner = chest and chest:FindFirstChild("Inner")
+    if not inner then return end
+
+    local chestPos = inner.Position
+
+    -- 4. Teleport directly onto Chest.Inner
+    local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if root then
+        root.CFrame = CFrame.new(chestPos + Vector3.new(0, 3, 0))
+        root.Velocity = Vector3.zero
+        root.RotVelocity = Vector3.zero
+    end
     task.wait(0.5)
-    
+
     getgenv().ActivityStatus.current = "Opening " .. chestName
     getgenv().ActivityStatus.trigger = true
-    
-    while true do
-        local riftFolder = workspace:FindFirstChild("Rendered")
-        local riftExists = false
-        if riftFolder then
-            riftFolder = riftFolder:FindFirstChild("Rifts")
-            if riftFolder and riftFolder:FindFirstChild(riftKey) then
-                riftExists = true
-            end
-        end
-        
-        if not riftExists then break end
-        
-        pcall(function() Remote:FireServer("UnlockRiftChest", riftKey, false) end)
+
+    -- 5. Fire unlock 5 times (chest opens, rift shell stays)
+    for i = 1, 5 do
+        pcall(function()
+            Remote:FireServer("UnlockRiftChest", riftKey, false)
+        end)
         task.wait(0.5)
     end
 end
@@ -373,7 +386,7 @@ RiftTab:Toggle({
 -- ======================================
 task.spawn(function()
     task.wait(1.5)
-    
+
     -- Auto Egg Rift
     if riftSettings.autoEggRift then
         eggLoop = true
@@ -392,7 +405,7 @@ task.spawn(function()
             end
         end)
     end
-    
+
     -- World Chests
     if riftSettings.autoSeasonChest then
         seasonRunning = true
@@ -403,7 +416,7 @@ task.spawn(function()
             end
         end)
     end
-    
+
     if riftSettings.autoGiantChest then
         giantRunning = true
         giantThread = task.spawn(function()
@@ -413,7 +426,7 @@ task.spawn(function()
             end
         end)
     end
-    
+
     if riftSettings.autoVoidChest then
         voidRunning = true
         voidThread = task.spawn(function()
@@ -423,7 +436,7 @@ task.spawn(function()
             end
         end)
     end
-    
+
     if riftSettings.autoTicketChest then
         ticketRunning = true
         ticketThread = task.spawn(function()
@@ -433,7 +446,7 @@ task.spawn(function()
             end
         end)
     end
-    
+
     if riftSettings.autoClaimAllChest then
         claimAllRunning = true
         claimAllThread = task.spawn(function()
@@ -446,7 +459,7 @@ task.spawn(function()
             end
         end)
     end
-    
+
     -- Chest Rifts
     if riftSettings.autoGoldenChest then
         goldenRunning = true
@@ -457,7 +470,7 @@ task.spawn(function()
             end
         end)
     end
-    
+
     if riftSettings.autoRoyalChest then
         royalRunning = true
         royalThread = task.spawn(function()
@@ -467,7 +480,7 @@ task.spawn(function()
             end
         end)
     end
-    
+
     if riftSettings.autoSuperChest then
         superRunning = true
         superThread = task.spawn(function()
@@ -477,7 +490,7 @@ task.spawn(function()
             end
         end)
     end
-    
+
     if riftSettings.autoDiceChest then
         diceRunning = true
         diceThread = task.spawn(function()
@@ -487,7 +500,7 @@ task.spawn(function()
             end
         end)
     end
-    
+
     print("[Rift] Auto-started saved toggles!")
 end)
 
