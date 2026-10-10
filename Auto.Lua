@@ -13,7 +13,6 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local constants = require(ReplicatedStorage.Shared.Constants)
 local LocalData = require(ReplicatedStorage.Client.Framework.Services.LocalData)
-local MasteryData = require(ReplicatedStorage.Shared.Data.Mastery)
 
 local RE = ReplicatedStorage.Shared.Framework.Network.Remote.RemoteEvent
 
@@ -86,10 +85,20 @@ local forfeitThread = nil
 local fishRunning = false
 
 -- Mastery
-local MASTERY_CATEGORIES = {"Shops", "Buffs", "Minigames", "Rifts", "Pets"}
-local selectedMastery = autoSettings.selectedMastery or "Shops"
+local MASTERY_CATEGORIES = {"Buffs", "Pets", "Rifts", "Shops", "Minigames"}
+local MASTERY_MAX = {
+    Buffs = 25,
+    Pets = 23,
+    Rifts = 4,
+    Shops = 11,
+    Minigames = 8,
+}
+local selectedMastery = autoSettings.selectedMastery or "Buffs"
 local masteryRunning = false
 local masteryThread = nil
+
+local allMasteryRunning = false
+local allMasteryThread = nil
 
 -- ======================================
 -- GET BOXES
@@ -514,22 +523,21 @@ local function startAutoMastery()
     masteryThread = task.spawn(function()
         while masteryRunning do
             local data = LocalData:Get()
-            local upgradesList = MasteryData.Upgrades[selectedMastery]
+            local current = (data and data.MasteryLevels and data.MasteryLevels[selectedMastery]) or 0
+            local max = MASTERY_MAX[selectedMastery] or 0
 
-            if upgradesList then
-                local maxLevel = #upgradesList
-                local currentLevel = (data and data.MasteryLevels and data.MasteryLevels[selectedMastery]) or 0
-
-                if currentLevel >= maxLevel then
-                    masteryRunning = false
-                    break
-                end
-
-                pcall(function()
-                    RE:FireServer("UpgradeMastery", selectedMastery)
-                end)
+            -- Already maxed? Fire webhook once and stop
+            if current >= max then
+                getgenv().ActivityStatus.current = "🔒 " .. selectedMastery .. " Mastery is MAXED!"
+                getgenv().ActivityStatus.trigger = true
+                masteryRunning = false
+                break
             end
 
+            -- Fire upgrade
+            pcall(function()
+                RE:FireServer("UpgradeMastery", selectedMastery)
+            end)
             task.wait(2)
         end
     end)
@@ -538,6 +546,44 @@ end
 local function stopAutoMastery()
     masteryRunning = false
     if masteryThread then task.cancel(masteryThread); masteryThread = nil end
+end
+
+local function startAllMastery()
+    if allMasteryThread then return end
+    allMasteryRunning = true
+    allMasteryThread = task.spawn(function()
+        while allMasteryRunning do
+            local allMaxed = true
+
+            for _, cat in ipairs(MASTERY_CATEGORIES) do
+                if not allMasteryRunning then break end
+
+                local data = LocalData:Get()
+                local current = (data and data.MasteryLevels and data.MasteryLevels[cat]) or 0
+                local max = MASTERY_MAX[cat] or 0
+
+                if current < max then
+                    allMaxed = false
+
+                    pcall(function()
+                        RE:FireServer("UpgradeMastery", cat)
+                    end)
+                    task.wait(1.5)
+                end
+            end
+
+            -- If everything maxed, stop silently
+            if allMaxed then
+                allMasteryRunning = false
+                break
+            end
+        end
+    end)
+end
+
+local function stopAllMastery()
+    allMasteryRunning = false
+    if allMasteryThread then task.cancel(allMasteryThread); allMasteryThread = nil end
 end
 
 -- ======================================
@@ -941,13 +987,25 @@ AutoTab:Dropdown({
 
 AutoTab:Toggle({
     Title = "Auto Upgrade Mastery",
-    Desc = "Continuously upgrades until max (auto-stops when full)",
+    Desc = "Upgrades selected mastery until maxed (auto-stops)",
     Value = autoSettings.autoMastery or false,
     Callback = function(v)
         autoSettings.autoMastery = v
         getgenv().HubSettings.auto = autoSettings
         saveHubSettings()
         if v then startAutoMastery() else stopAutoMastery() end
+    end,
+})
+
+AutoTab:Toggle({
+    Title = "Auto Upgrade ALL Mastery",
+    Desc = "Cycles through all masteries silently (Buffs → Pets → Rifts → Shops → Minigames)",
+    Value = autoSettings.autoAllMastery or false,
+    Callback = function(v)
+        autoSettings.autoAllMastery = v
+        getgenv().HubSettings.auto = autoSettings
+        saveHubSettings()
+        if v then startAllMastery() else stopAllMastery() end
     end,
 })
 
@@ -1034,6 +1092,7 @@ task.spawn(function()
     if autoSettings.autoOpenBox then startAutoBox() end
     if autoSettings.autoFishing then startAutoFishing() end
     if autoSettings.autoMastery then startAutoMastery() end
+    if autoSettings.autoAllMastery then startAllMastery() end
     
     if autoSettings.autoPickup then
         pickupEnabled = true
