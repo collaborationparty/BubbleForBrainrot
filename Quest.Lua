@@ -494,6 +494,9 @@ local function sendSeasonPremiumWebhook(premiumPet)
     if webhookURL == "" then return end
     if not request then return end
     
+    -- Clean the Discord ID
+    discordID = tostring(discordID):gsub("%s+", "")
+    
     local rarityText = premiumPet.rarity
     if premiumPet.xl then rarityText = rarityText .. " XL" end
     
@@ -509,6 +512,9 @@ local function sendSeasonPremiumWebhook(premiumPet)
             Headers = {["Content-Type"] = "application/json"},
             Body = HttpService:JSONEncode({
                 content = pingMsg .. "🚨 STOP! Premium Season Pet Found!",
+                allowed_mentions = {
+                    parse = {"users"}
+                },
                 embeds = {{
                     title = "🚨 PREMIUM SEASON PET FOUND!",
                     description = "**Auto Claim has STOPPED!**\n\n" ..
