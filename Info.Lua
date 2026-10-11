@@ -58,24 +58,6 @@ InfoTab:Button({
 })
 
 -- ======================================
--- DONATION
--- ======================================
-InfoTab:Section({ Title = "Donation" })
-
-InfoTab:Paragraph({
-    Title = "Support Renoa Hub development!",
-    Desc = "Donation links coming soon!",
-})
-
-InfoTab:Button({
-    Title = "Copy Donation Link",
-    Desc = "Coming soon",
-    Callback = function()
-        print("[Info] Donation link coming soon!")
-    end,
-})
-
--- ======================================
 -- SUGGESTION
 -- ======================================
 InfoTab:Section({ Title = "Suggestion" })
@@ -138,6 +120,24 @@ InfoTab:Button({
             print("[Info] ✅ Suggestion sent! Thank you!")
             getgenv()._suggestionText = ""
         end)
+    end,
+})
+
+-- ======================================
+-- DONATION
+-- ======================================
+InfoTab:Section({ Title = "Donation" })
+
+InfoTab:Paragraph({
+    Title = "Support Renoa Hub development!",
+    Desc = "Donation links coming soon!",
+})
+
+InfoTab:Button({
+    Title = "Copy Donation Link",
+    Desc = "Coming soon",
+    Callback = function()
+        print("[Info] Donation link coming soon!")
     end,
 })
 
