@@ -55,9 +55,9 @@ local EVENTS = {
 }
 
 -- ======================================
--- AUTUMN UPGRADES
+-- HALLOWEEN UPGRADES
 -- ======================================
-local AUTUMN_UPGRADES = {
+local HALLOWEEN_UPGRADES = {
     "Currency",
     "Luck",
     "SecretLuck",
@@ -69,7 +69,7 @@ local selectedUpgrades = eventSettings.selectedUpgrades or {}
 if type(selectedUpgrades) == "string" then selectedUpgrades = {selectedUpgrades} end
 
 -- ======================================
--- REBIRTH SHOP (16 items)
+-- REBIRTH SHOP (14 items — hw26rebirth-shop)
 -- ======================================
 local REBIRTH_SHOP_ITEMS = {
     "Lucky Lvl 7",
@@ -78,26 +78,24 @@ local REBIRTH_SHOP_ITEMS = {
     "Infinity Elixir x25",
     "Secret Elixir x25",
     "Ultra Infinity Elixir x25",
-    "Autumn Infinity Elixir x10",
     "Purple Fragment",
     "Rainbow Fragment",
     "Shrine Ticket",
-    "Autumn Elixir Lvl 4 x10",
-    "XL Sinister Jack O' Lantern",
-    "Illusionary King Mush",
-    "Mythic Illusionary King Mush",
-    "XL Illusionary King Mush",
-    "P U F F",
+    "Sinister Elixir Lvl 4 x10",
+    "Luck Rune Tier 3 x3",
+    "Secret Rune Tier 3 x3",
+    "Bubbles Rune Tier 3 x3",
+    "XL Eerie Pumpkin",
 }
 
 local selectedRebirthItems = eventSettings.selectedRebirthItems or {}
 if type(selectedRebirthItems) == "string" then selectedRebirthItems = {selectedRebirthItems} end
 
 -- ======================================
--- AUTUMN SHOP (14 items)
+-- EVENT SHOP (12 items — spooky-shop)
 -- ======================================
-local AUTUMN_SHOP_ITEMS = {
-    "Autumn Elixir Lvl 4",
+local EVENT_SHOP_ITEMS = {
+    "Sinister Elixir Lvl 4",
     "Shadow Crystal",
     "Lucky Lvl 7",
     "Speed Lvl 7",
@@ -105,12 +103,10 @@ local AUTUMN_SHOP_ITEMS = {
     "Infinity Elixir",
     "Secret Elixir",
     "Ultra Infinity Elixir",
-    "Autumn Infinity Elixir",
     "Green Fragment",
     "Blue Fragment",
     "Boost Crystal",
-    "Angelic Pumpkin",
-    "XL Angelic Pumpkin",
+    "Creepy Hydra",
 }
 
 local selectedShopItems = eventSettings.selectedShopItems or {}
@@ -119,14 +115,14 @@ if type(selectedShopItems) == "string" then selectedShopItems = {selectedShopIte
 -- ======================================
 -- THREAD HANDLES
 -- ======================================
-local autumnUpgradeBuying = false
-local autumnUpgradeThread = nil
+local halloweenUpgradeBuying = false
+local halloweenUpgradeThread = nil
 local rebirthShopBuying = false
 local rebirthShopThread = nil
-local autumnShopBuying = false
-local autumnShopThread = nil
-local autumnRebirthAuto = false
-local autumnRebirthThread = nil
+local eventShopBuying = false
+local eventShopThread = nil
+local halloweenRebirthAuto = false
+local halloweenRebirthThread = nil
 
 -- ======================================
 -- EVENT BOARD READER
@@ -302,6 +298,7 @@ local function sendSummonWebhook(success)
             Headers = {["Content-Type"] = "application/json"},
             Body = HttpService:JSONEncode({
                 content = content,
+                allowed_mentions = {parse = {"users"}},
                 embeds = {{
                     title = success and "✅ Rift Summoned" or "❌ Summon Failed",
                     description = "**" .. player.Name .. "**",
@@ -515,47 +512,47 @@ EventTab:Toggle({
 -- ======================================
 EventTab:Section({ Title = "Event Chest" })
 
-local autumnChestClaiming = false
-local autumnChestThread = nil
+local halloweenChestClaiming = false
+local halloweenChestThread = nil
 
 EventTab:Toggle({
-    Title = "Auto Claim Autumn Chest",
-    Desc = "Claims Autumn Chest when cooldown is ready",
-    Value = eventSettings.autoClaimAutumnChest or false,
+    Title = "Auto Claim Halloween Chest",
+    Desc = "Claims Halloween Chest when cooldown is ready",
+    Value = eventSettings.autoClaimHalloweenChest or false,
     Callback = function(v)
-        autumnChestClaiming = v
-        eventSettings.autoClaimAutumnChest = v
+        halloweenChestClaiming = v
+        eventSettings.autoClaimHalloweenChest = v
         getgenv().HubSettings.event = eventSettings
         saveHubSettings()
         if v then
-            autumnChestThread = task.spawn(function()
-                while autumnChestClaiming do
+            halloweenChestThread = task.spawn(function()
+                while halloweenChestClaiming do
                     local data = LocalData:Get()
                     local cooldowns = data and data.Cooldowns
-                    local cd = cooldowns and cooldowns["Autumn Chest"]
+                    local cd = cooldowns and cooldowns["Halloween Chest"]
 
                     if cd and os.time() >= cd then
                         pcall(function()
-                            Remote:FireServer("ClaimChest", "Autumn Chest")
+                            Remote:FireServer("ClaimChest", "Halloween Chest")
                         end)
                     end
                     task.wait(5)
                 end
             end)
         else
-            if autumnChestThread then task.cancel(autumnChestThread) end
+            if halloweenChestThread then task.cancel(halloweenChestThread) end
         end
     end,
 })
 
 -- ======================================
--- UI - AUTUMN UPGRADES
+-- UI - HALLOWEEN UPGRADES
 -- ======================================
-EventTab:Section({ Title = "Autumn Upgrades" })
+EventTab:Section({ Title = "Halloween Upgrades" })
 
 EventTab:Dropdown({
     Title = "Select Upgrades (Multi-Select)",
-    Values = AUTUMN_UPGRADES,
+    Values = HALLOWEEN_UPGRADES,
     Value = selectedUpgrades,
     Multi = true,
     Callback = function(v)
@@ -572,27 +569,27 @@ EventTab:Dropdown({
 
 EventTab:Toggle({
     Title = "Auto Buy Selected Upgrades",
-    Desc = "Buys the selected Autumn upgrades continuously",
+    Desc = "Buys the selected Halloween upgrades continuously",
     Value = eventSettings.autoBuyUpgrades or false,
     Callback = function(v)
-        autumnUpgradeBuying = v
+        halloweenUpgradeBuying = v
         eventSettings.autoBuyUpgrades = v
         getgenv().HubSettings.event = eventSettings
         saveHubSettings()
         if v then
-            autumnUpgradeThread = task.spawn(function()
-                while autumnUpgradeBuying do
+            halloweenUpgradeThread = task.spawn(function()
+                while halloweenUpgradeBuying do
                     for _, upgrade in ipairs(selectedUpgrades) do
-                        if not autumnUpgradeBuying then break end
+                        if not halloweenUpgradeBuying then break end
                         local value = type(upgrade) == "table" and upgrade[1] or upgrade
-                        pcall(function() RE:FireServer("BuyAutumnUpgrade", value) end)
+                        pcall(function() RE:FireServer("BuyHalloween26Upgrade", value) end)
                         task.wait(0.5)
                     end
                     task.wait(5)
                 end
             end)
         else
-            if autumnUpgradeThread then task.cancel(autumnUpgradeThread) end
+            if halloweenUpgradeThread then task.cancel(halloweenUpgradeThread) end
         end
     end,
 })
@@ -639,7 +636,7 @@ EventTab:Toggle({
                             if name == value then slotIndex = i; break end
                         end
                         if slotIndex then
-                            pcall(function() RE:FireServer("BuyShopItem", "rebirth-shop", slotIndex, false) end)
+                            pcall(function() RE:FireServer("BuyShopItem", "hw26rebirth-shop", slotIndex, false) end)
                             task.wait(0.5)
                         end
                     end
@@ -653,13 +650,13 @@ EventTab:Toggle({
 })
 
 -- ======================================
--- UI - AUTUMN SHOP
+-- UI - EVENT SHOP
 -- ======================================
-EventTab:Section({ Title = "Autumn Shop" })
+EventTab:Section({ Title = "Event Shop" })
 
 EventTab:Dropdown({
     Title = "Select Items (Multi-Select)",
-    Values = AUTUMN_SHOP_ITEMS,
+    Values = EVENT_SHOP_ITEMS,
     Value = selectedShopItems,
     Multi = true,
     Callback = function(v)
@@ -676,25 +673,25 @@ EventTab:Dropdown({
 
 EventTab:Toggle({
     Title = "Auto Buy Selected Items",
-    Desc = "Buys the selected Autumn shop items continuously",
+    Desc = "Buys the selected Event shop items continuously",
     Value = eventSettings.autoBuyShop or false,
     Callback = function(v)
-        autumnShopBuying = v
+        eventShopBuying = v
         eventSettings.autoBuyShop = v
         getgenv().HubSettings.event = eventSettings
         saveHubSettings()
         if v then
-            autumnShopThread = task.spawn(function()
-                while autumnShopBuying do
+            eventShopThread = task.spawn(function()
+                while eventShopBuying do
                     for _, item in ipairs(selectedShopItems) do
-                        if not autumnShopBuying then break end
+                        if not eventShopBuying then break end
                         local value = type(item) == "table" and item[1] or item
                         local slotIndex = nil
-                        for i, name in ipairs(AUTUMN_SHOP_ITEMS) do
+                        for i, name in ipairs(EVENT_SHOP_ITEMS) do
                             if name == value then slotIndex = i; break end
                         end
                         if slotIndex then
-                            pcall(function() RE:FireServer("BuyShopItem", "autumn-shop", slotIndex, true) end)
+                            pcall(function() RE:FireServer("BuyShopItem", "spooky-shop", slotIndex, true) end)
                             task.wait(0.5)
                         end
                     end
@@ -702,35 +699,35 @@ EventTab:Toggle({
                 end
             end)
         else
-            if autumnShopThread then task.cancel(autumnShopThread) end
+            if eventShopThread then task.cancel(eventShopThread) end
         end
     end,
 })
 
 -- ======================================
--- UI - AUTUMN REBIRTH
+-- UI - HALLOWEEN REBIRTH
 -- ======================================
-EventTab:Section({ Title = "Autumn Rebirth" })
+EventTab:Section({ Title = "Halloween Rebirth" })
 
 EventTab:Toggle({
-    Title = "Auto Autumn Rebirth",
+    Title = "Auto Halloween Rebirth",
     Desc = "Rebirths when progress is full",
-    Value = eventSettings.autoAutumnRebirth or false,
+    Value = eventSettings.autoHalloweenRebirth or false,
     Callback = function(v)
-        autumnRebirthAuto = v
-        eventSettings.autoAutumnRebirth = v
+        halloweenRebirthAuto = v
+        eventSettings.autoHalloweenRebirth = v
         getgenv().HubSettings.event = eventSettings
         saveHubSettings()
         if v then
-            autumnRebirthThread = task.spawn(function()
-                while autumnRebirthAuto do
+            halloweenRebirthThread = task.spawn(function()
+                while halloweenRebirthAuto do
                     local playerGui = player:FindFirstChild("PlayerGui")
                     local sg = playerGui and playerGui:FindFirstChild("ScreenGui")
-                    local ar = sg and sg:FindFirstChild("AutumnRebirth")
+                    local hr = sg and sg:FindFirstChild("HalloweenRebirth")
 
-                    if ar then
+                    if hr then
                         local ok, progressLabel = pcall(function()
-                            return ar.Frame.Inner.Frame.Progress.Info.Label
+                            return hr.Frame.Inner.Frame.Progress.Info.Label
                         end)
 
                         if ok and progressLabel and progressLabel.Text then
@@ -742,18 +739,18 @@ EventTab:Toggle({
                                 local max = tonumber(maxClean)
 
                                 if current and max and current >= max then
-                                    local rebirthBtn = ar.Frame
-                                        and ar.Frame:FindFirstChild("Inner")
-                                        and ar.Frame.Inner:FindFirstChild("Frame")
-                                        and ar.Frame.Inner.Frame:FindFirstChild("Buttons")
-                                        and ar.Frame.Inner.Frame.Buttons:FindFirstChild("Rebirth")
-                                        and ar.Frame.Inner.Frame.Buttons.Rebirth:FindFirstChild("Button")
+                                    local rebirthBtn = hr.Frame
+                                        and hr.Frame:FindFirstChild("Inner")
+                                        and hr.Frame.Inner:FindFirstChild("Frame")
+                                        and hr.Frame.Inner.Frame:FindFirstChild("Buttons")
+                                        and hr.Frame.Inner.Frame.Buttons:FindFirstChild("Rebirth")
+                                        and hr.Frame.Inner.Frame.Buttons.Rebirth:FindFirstChild("Button")
 
                                     if rebirthBtn and (rebirthBtn:IsA("TextButton") or rebirthBtn:IsA("ImageButton")) then
-                                        firesignal(rebirthBtn.Activated)
+                                        pcall(function() firesignal(rebirthBtn.Activated) end)
                                     else
                                         pcall(function()
-                                            Remote:FireServer("AutumnRebirth")
+                                            RE:FireServer("Halloween Rebirth")
                                         end)
                                     end
                                     task.wait(3)
@@ -765,7 +762,7 @@ EventTab:Toggle({
                 end
             end)
         else
-            if autumnRebirthThread then task.cancel(autumnRebirthThread) end
+            if halloweenRebirthThread then task.cancel(halloweenRebirthThread) end
         end
     end,
 })
@@ -988,7 +985,6 @@ EventTab:Toggle({
 task.spawn(function()
     task.wait(1.5)
     
-    -- Auto Add Event
     if eventSettings.autoAddEvent then
         eventRunning = true
         eventThread = task.spawn(function()
@@ -1004,31 +1000,29 @@ task.spawn(function()
         end)
     end
     
-    -- Auto Claim Autumn Chest
-    if eventSettings.autoClaimAutumnChest then
-        autumnChestClaiming = true
-        autumnChestThread = task.spawn(function()
-            while autumnChestClaiming do
+    if eventSettings.autoClaimHalloweenChest then
+        halloweenChestClaiming = true
+        halloweenChestThread = task.spawn(function()
+            while halloweenChestClaiming do
                 local data = LocalData:Get()
                 local cooldowns = data and data.Cooldowns
-                local cd = cooldowns and cooldowns["Autumn Chest"]
+                local cd = cooldowns and cooldowns["Halloween Chest"]
                 if cd and os.time() >= cd then
-                    pcall(function() Remote:FireServer("ClaimChest", "Autumn Chest") end)
+                    pcall(function() Remote:FireServer("ClaimChest", "Halloween Chest") end)
                 end
                 task.wait(5)
             end
         end)
     end
     
-    -- Auto Buy Selected Upgrades
     if eventSettings.autoBuyUpgrades then
-        autumnUpgradeBuying = true
-        autumnUpgradeThread = task.spawn(function()
-            while autumnUpgradeBuying do
+        halloweenUpgradeBuying = true
+        halloweenUpgradeThread = task.spawn(function()
+            while halloweenUpgradeBuying do
                 for _, upgrade in ipairs(selectedUpgrades) do
-                    if not autumnUpgradeBuying then break end
+                    if not halloweenUpgradeBuying then break end
                     local value = type(upgrade) == "table" and upgrade[1] or upgrade
-                    pcall(function() RE:FireServer("BuyAutumnUpgrade", value) end)
+                    pcall(function() RE:FireServer("BuyHalloween26Upgrade", value) end)
                     task.wait(0.5)
                 end
                 task.wait(5)
@@ -1036,7 +1030,6 @@ task.spawn(function()
         end)
     end
     
-    -- Auto Buy Rebirth Shop Items
     if eventSettings.autoBuyRebirthShop then
         rebirthShopBuying = true
         rebirthShopThread = task.spawn(function()
@@ -1049,7 +1042,7 @@ task.spawn(function()
                         if name == value then slotIndex = i; break end
                     end
                     if slotIndex then
-                        pcall(function() RE:FireServer("BuyShopItem", "rebirth-shop", slotIndex, false) end)
+                        pcall(function() RE:FireServer("BuyShopItem", "hw26rebirth-shop", slotIndex, false) end)
                         task.wait(0.5)
                     end
                 end
@@ -1058,20 +1051,19 @@ task.spawn(function()
         end)
     end
     
-    -- Auto Buy Autumn Shop Items
     if eventSettings.autoBuyShop then
-        autumnShopBuying = true
-        autumnShopThread = task.spawn(function()
-            while autumnShopBuying do
+        eventShopBuying = true
+        eventShopThread = task.spawn(function()
+            while eventShopBuying do
                 for _, item in ipairs(selectedShopItems) do
-                    if not autumnShopBuying then break end
+                    if not eventShopBuying then break end
                     local value = type(item) == "table" and item[1] or item
                     local slotIndex = nil
-                    for i, name in ipairs(AUTUMN_SHOP_ITEMS) do
+                    for i, name in ipairs(EVENT_SHOP_ITEMS) do
                         if name == value then slotIndex = i; break end
                     end
                     if slotIndex then
-                        pcall(function() RE:FireServer("BuyShopItem", "autumn-shop", slotIndex, true) end)
+                        pcall(function() RE:FireServer("BuyShopItem", "spooky-shop", slotIndex, true) end)
                         task.wait(0.5)
                     end
                 end
@@ -1080,17 +1072,16 @@ task.spawn(function()
         end)
     end
     
-    -- Auto Autumn Rebirth
-    if eventSettings.autoAutumnRebirth then
-        autumnRebirthAuto = true
-        autumnRebirthThread = task.spawn(function()
-            while autumnRebirthAuto do
+    if eventSettings.autoHalloweenRebirth then
+        halloweenRebirthAuto = true
+        halloweenRebirthThread = task.spawn(function()
+            while halloweenRebirthAuto do
                 local playerGui = player:FindFirstChild("PlayerGui")
                 local sg = playerGui and playerGui:FindFirstChild("ScreenGui")
-                local ar = sg and sg:FindFirstChild("AutumnRebirth")
-                if ar then
+                local hr = sg and sg:FindFirstChild("HalloweenRebirth")
+                if hr then
                     local ok, progressLabel = pcall(function()
-                        return ar.Frame.Inner.Frame.Progress.Info.Label
+                        return hr.Frame.Inner.Frame.Progress.Info.Label
                     end)
                     if ok and progressLabel and progressLabel.Text then
                         local currStr, maxStr = progressLabel.Text:match("([%d,]+)%s*/%s*([%d,]+)")
@@ -1100,16 +1091,16 @@ task.spawn(function()
                             local current = tonumber(currClean)
                             local max = tonumber(maxClean)
                             if current and max and current >= max then
-                                local rebirthBtn = ar.Frame
-                                    and ar.Frame:FindFirstChild("Inner")
-                                    and ar.Frame.Inner:FindFirstChild("Frame")
-                                    and ar.Frame.Inner.Frame:FindFirstChild("Buttons")
-                                    and ar.Frame.Inner.Frame.Buttons:FindFirstChild("Rebirth")
-                                    and ar.Frame.Inner.Frame.Buttons.Rebirth:FindFirstChild("Button")
+                                local rebirthBtn = hr.Frame
+                                    and hr.Frame:FindFirstChild("Inner")
+                                    and hr.Frame.Inner:FindFirstChild("Frame")
+                                    and hr.Frame.Inner.Frame:FindFirstChild("Buttons")
+                                    and hr.Frame.Inner.Frame.Buttons:FindFirstChild("Rebirth")
+                                    and hr.Frame.Inner.Frame.Buttons.Rebirth:FindFirstChild("Button")
                                 if rebirthBtn and (rebirthBtn:IsA("TextButton") or rebirthBtn:IsA("ImageButton")) then
-                                    firesignal(rebirthBtn.Activated)
+                                    pcall(function() firesignal(rebirthBtn.Activated) end)
                                 else
-                                    pcall(function() Remote:FireServer("AutumnRebirth") end)
+                                    pcall(function() RE:FireServer("Halloween Rebirth") end)
                                 end
                                 task.wait(3)
                             end
@@ -1121,7 +1112,6 @@ task.spawn(function()
         end)
     end
     
-    -- None section toggles
     if eventSettings.autoHatchRift then
         autoHatchRiftEnabled = true
         autoHatchRiftThread = task.spawn(function()
