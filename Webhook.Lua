@@ -310,6 +310,7 @@ end
 local Pets = require(ReplicatedStorage.Shared.Data.Pets)
 local LocalData = require(ReplicatedStorage.Client.Framework.Services.LocalData)
 local Remote = require(ReplicatedStorage.Shared.Framework.Network.Remote)
+local SecretBountyUtil = require(ReplicatedStorage.Shared.Utils.Stats.SecretBountyUtil)
 
 -- ======================================
 -- FORMAT
@@ -481,10 +482,12 @@ local hatchQueue={}
 local onlineQueue={}
 local publicQueue={}
 local rareEggQueue={}
+local bountyQueue={}
 local hatchProcessing=false
 local onlineProcessing=false
 local publicProcessing=false
 local rareEggProcessing=false
+local bountyProcessing=false
 
 local function sendToWebhook(queue, url)
     if url == "" then return end
@@ -506,6 +509,7 @@ local function processHatch() if not hatchProcessing then hatchProcessing = true
 local function processPublic() if not publicProcessing then publicProcessing = true task.spawn(function() sendToWebhook(publicQueue, PUBLIC_WEBHOOK_URL) publicProcessing = false end) end end
 local function processOnline() if not onlineProcessing then onlineProcessing = true task.spawn(function() sendToWebhook(onlineQueue, ONLINE_WEBHOOK_URL) onlineProcessing = false end) end end
 local function processRareEgg() if not rareEggProcessing then rareEggProcessing = true task.spawn(function() sendToWebhook(rareEggQueue, HATCH_WEBHOOK_URL) rareEggProcessing = false end) end end
+local function processBounty() if not bountyProcessing then bountyProcessing = true task.spawn(function() sendToWebhook(bountyQueue, HATCH_WEBHOOK_URL) bountyProcessing = false end) end end
 
 -- ======================================
 -- STUCK DETECTION + REJOIN
@@ -557,6 +561,7 @@ task.spawn(function()
                 
                 table.insert(onlineQueue, {
                     content = pingMsg,
+                    allowed_mentions = {parse = {"users"}},
                     embeds = {{
                         title = "⚠️ STUCK DETECTED - REJOINING!",
                         description = "**" .. player.Name .. "** has no hatches for " .. (zeroHatchCount * 2) .. " minutes! Rejoining...",
@@ -659,6 +664,7 @@ task.spawn(function()
 
         table.insert(onlineQueue, {
             content = pingMsg,
+            allowed_mentions = {parse = {"users"}},
             embeds = {{
                 title = isStuck and "⚠️ STUCK DETECTED!" or "Still Online!",
                 description =
@@ -715,7 +721,8 @@ task.spawn(function()
                         end
 
                         table.insert(hatchQueue, {
-                            content = pingMsg .. "⚠️ Inventory Full!",
+                            content = pingMsg,
+                            allowed_mentions = {parse = {"users"}},
                             embeds = {{
                                 title = "⚠️ INVENTORY FULL!",
                                 description = "**" .. player.Name .. "**'s pet inventory is full!\n\nHatching is blocked until pets are cleared.\n\nConsider unlocking **Digital Storage** to avoid this.",
@@ -770,6 +777,7 @@ task.spawn(function()
                     
                     table.insert(rareEggQueue, {
                         content = pingMsg,
+                        allowed_mentions = {parse = {"users"}},
                         embeds = {{
                             title = "🔥 RARE EGG OBTAINED! 🔥",
                             description = "**" .. displayName .. "** just got a **" .. eggInfo.displayName .. "**!\n\n**Contents:**\n" .. petListStr,
@@ -804,6 +812,132 @@ task.spawn(function()
                 end
                 
                 rareEggsSeen[eggName] = currentCount
+            end
+        end
+    end
+end)
+
+-- ======================================
+-- BOUNTY INFO SENDER
+-- ======================================
+local lastBountySent = nil
+
+local function getBountyInfo()
+    local ok, bounty = pcall(function()
+        return SecretBountyUtil:Get()
+    end)
+    if ok and bounty then
+        return {
+            name = bounty.Name or "Unknown",
+            egg = bounty.Egg or "Unknown",
+            chance = bounty.Chance,
+        }
+    end
+    return nil
+end
+
+local function getBountyTimeUntilReset()
+    local worlds = workspace:FindFirstChild("Worlds")
+    if worlds then
+        local overworld = worlds:FindFirstChild("The Overworld")
+        if overworld then
+            local bounty = overworld:FindFirstChild("SecretBounty")
+            if bounty then
+                local counter = bounty:FindFirstChild("Counter")
+                if counter then
+                    local display = counter:FindFirstChild("Display")
+                    if display then
+                        local sGui = display:FindFirstChild("SurfaceGui")
+                        if sGui then
+                            local label = sGui:FindFirstChild("Label")
+                            if label then
+                                return label.Text
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return "Unknown"
+end
+
+local function formatBountyChance(chance)
+    if not chance or chance <= 0 then return "Unknown" end
+    if chance >= 1 then return chance .. "%" end
+    local oneIn = 100 / chance
+    if oneIn >= 1e9 then return "1/" .. string.format("%.0f", oneIn / 1e9) .. "B"
+    elseif oneIn >= 1e6 then return "1/" .. string.format("%.1f", oneIn / 1e6) .. "M"
+    elseif oneIn >= 1e3 then return "1/" .. string.format("%.1f", oneIn / 1e3) .. "K"
+    else return "1/" .. string.format("%.0f", oneIn) end
+end
+
+local function getBountyImage(petName)
+    if not petName or petName == "" then return nil end
+    local slug = petName:lower():gsub("%s+", "-"):gsub("[^%w%-]", "")
+    return "https://cdn.demand.gg/i/bgsi/pets/" .. slug .. "/256.webp"
+end
+
+local function sendBountyWebhook(info)
+    if HATCH_WEBHOOK_URL == "" then return end
+    if not request then return end
+    
+    local chanceText = formatBountyChance(info.chance)
+    local resetText = getBountyTimeUntilReset()
+    local displayName = hideUsername and "Hidden" or player.Name
+    
+    local embed = {
+        title = "🎯  ✦  TODAY'S BOUNTY  ✦  🎯",
+        description =
+            "**" .. displayName .. "**\n\n" ..
+            "**┏━━━━━━━━━━━━━━━━━━━┓**\n" ..
+            "**┃  🐾 PET**\n" ..
+            "**┃  `" .. info.name .. "`**\n" ..
+            "**┃**\n" ..
+            "**┃  🥚 EGG**\n" ..
+            "**┃  `" .. info.egg .. "`**\n" ..
+            "**┗━━━━━━━━━━━━━━━━━━━┛**\n\n" ..
+            "**✨  CHANCE  ✨**\n" ..
+            "**`" .. chanceText .. "`**\n\n" ..
+            "**⏳  RESETS IN  ⏳**\n" ..
+            "**`" .. resetText .. "`**",
+        color = 0x8B00FF,
+        footer = { text = "Renoa Hub  •  " .. os.date("%Y-%m-%d %H:%M:%S") }
+    }
+    
+    local img = getBountyImage(info.name)
+    if img then
+        embed.thumbnail = { url = img }
+    end
+    
+    table.insert(bountyQueue, { embeds = {embed} })
+    processBounty()
+end
+
+task.spawn(function()
+    task.wait(3)
+    
+    local initial = getBountyInfo()
+    if initial then
+        sendBountyWebhook(initial)
+        lastBountySent = { name = initial.name, egg = initial.egg }
+    end
+    
+    while true do
+        task.wait(60)
+        
+        local info = getBountyInfo()
+        if info then
+            local changed = (not lastBountySent) 
+                or (lastBountySent.name ~= info.name) 
+                or (lastBountySent.egg ~= info.egg)
+            
+            if changed then
+                sendBountyWebhook(info)
+                lastBountySent = { name = info.name, egg = info.egg }
+                
+                getgenv().ActivityStatus.current = "Bounty updated: " .. info.name
+                getgenv().ActivityStatus.trigger = true
             end
         end
     end
@@ -895,7 +1029,8 @@ task.spawn(function()
                             end
                             local displayStr = #displayEnchants > 0 and table.concat(displayEnchants, ", ") or "None"
 
-                            local enchantImage = nil                            if #enchantNames == 1 then
+                            local enchantImage = nil
+                            if #enchantNames == 1 then
                                 enchantImage = getEnchantImage(enchantNames[1])
                             elseif #enchantNames == 2 then
                                 enchantImage = getComboEnchantImage(enchantNames[1], enchantNames[2])
@@ -926,7 +1061,11 @@ task.spawn(function()
                                 local pingMsg = "<@"..DISCORD_USER_ID..">"
                                 if displayStr ~= "None" then pingMsg = "<@"..DISCORD_USER_ID..">, You Got "..displayStr.."!" end
                                 
-                                table.insert(hatchQueue, {content = DISCORD_USER_ID ~= "" and pingMsg or nil, embeds = {embed}})
+                                table.insert(hatchQueue, {
+                                    content = DISCORD_USER_ID ~= "" and pingMsg or nil,
+                                    allowed_mentions = {parse = {"users"}},
+                                    embeds = {embed}
+                                })
                                 processHatch()
                             end
                             
@@ -985,6 +1124,7 @@ task.spawn(function()
                                 
                                 table.insert(hatchQueue, {
                                     content = pingContent,
+                                    allowed_mentions = {parse = {"users"}},
                                     embeds = {embed}
                                 })
                                 processHatch()
@@ -1037,7 +1177,7 @@ task.spawn(function()
         if fourXFound and not was4xPlushieActive then
             was4xPlushieActive = true
             if HATCH_WEBHOOK_URL ~= "" then
-                pcall(function() request({Url = HATCH_WEBHOOK_URL, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = HttpService:JSONEncode({content = (DISCORD_USER_ID ~= "" and "<@"..DISCORD_USER_ID.."> " or "") .. "4x Egg Has Spawned!", embeds = {{title = "4x Egg Spawned!", description = "Go hatch it now!", color = 0xFF4500, footer = {text = "Good Luck Hatching! | Renoa Hub"}}}})}) end)
+                pcall(function() request({Url = HATCH_WEBHOOK_URL, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = HttpService:JSONEncode({content = (DISCORD_USER_ID ~= "" and "<@"..DISCORD_USER_ID.."> " or "") .. "4x Egg Has Spawned!", allowed_mentions = {parse = {"users"}}, embeds = {{title = "4x Egg Spawned!", description = "Go hatch it now!", color = 0xFF4500, footer = {text = "Good Luck Hatching! | Renoa Hub"}}}})}) end)
             end
         elseif not fourXFound then was4xPlushieActive = false end
     end
@@ -1162,7 +1302,7 @@ WebhookTab:Section({ Title = "Status" })
 
 WebhookTab:Paragraph({
     Title = "Active",
-    Desc = "Tracking: Secret, Celestial, Infinity, Void, Super Legendary, XL\nAlerts: 4x Egg, Rare Inventory Eggs (VOID EGG??, Shadow Realm Egg), Inventory Full\nOnline ping: Every 30 minutes\nStuck detection: Every 2 min, rejoin after 6 min\nFragments + Stats + Buff Times\nOdds Threshold: Private only, XL & Super exempt\nInfinity/Void: ALWAYS notify\nPet images: demand.gg\nEnchant images: demand.gg",
+    Desc = "Tracking: Secret, Celestial, Infinity, Void, Super Legendary, XL\nAlerts: 4x Egg, Rare Inventory Eggs (VOID EGG??, Shadow Realm Egg), Inventory Full\nBounty: Sends today's bounty on join + whenever it changes (checks every 60s)\nOnline ping: Every 30 minutes\nStuck detection: Every 2 min, rejoin after 6 min\nFragments + Stats + Buff Times\nOdds Threshold: Private only, XL & Super exempt\nInfinity/Void: ALWAYS notify\nPet images: demand.gg\nEnchant images: demand.gg",
 })
 
 WebhookTab:Paragraph({
