@@ -34,6 +34,8 @@ local bubbleThread = nil
 local dreamerThread = nil
 local permThread = nil
 
+local DONATE_INTERVAL = 72000  -- 20 hours in seconds
+
 -- Bubble Shrine
 local POTION_TYPES = {"Lucky", "Speed", "Coins", "Mythic", "Tickets"}
 local POTION_LEVELS = {1, 2, 3}
@@ -211,16 +213,22 @@ ShrineTab:Toggle({
         getgenv().HubSettings.shrine = shrineSettings
         saveHubSettings()
         if v then
+            if bubbleThread then task.cancel(bubbleThread); bubbleThread = nil end
+
             getgenv().ActivityStatus.current = "Bubble Shrine Activated"
             getgenv().ActivityStatus.trigger = true
             bubble()
+
+            local lastDonate = os.time()
             bubbleThread = task.spawn(function()
                 while bubbleEnabled do
-                    task.wait(72000)
-                    if bubbleEnabled then
+                    task.wait(60)
+                    if not bubbleEnabled then break end
+                    if os.time() - lastDonate >= DONATE_INTERVAL then
                         getgenv().ActivityStatus.current = "Bubble Shrine Activated"
                         getgenv().ActivityStatus.trigger = true
                         bubble()
+                        lastDonate = os.time()
                     end
                 end
             end)
@@ -260,16 +268,22 @@ ShrineTab:Toggle({
         getgenv().HubSettings.shrine = shrineSettings
         saveHubSettings()
         if v then
+            if dreamerThread then task.cancel(dreamerThread); dreamerThread = nil end
+
             getgenv().ActivityStatus.current = "Dreamer Shrine Activated"
             getgenv().ActivityStatus.trigger = true
             dreamer()
+
+            local lastDonate = os.time()
             dreamerThread = task.spawn(function()
                 while dreamerEnabled do
-                    task.wait(72000)
-                    if dreamerEnabled then
+                    task.wait(60)
+                    if not dreamerEnabled then break end
+                    if os.time() - lastDonate >= DONATE_INTERVAL then
                         getgenv().ActivityStatus.current = "Dreamer Shrine Activated"
                         getgenv().ActivityStatus.trigger = true
                         dreamer()
+                        lastDonate = os.time()
                     end
                 end
             end)
@@ -463,42 +477,50 @@ ShrineTab:Toggle({
 task.spawn(function()
     task.wait(1.5)
     
-    -- Auto Bubble (20h cycle)
+    -- Auto Bubble (20h poll loop)
     if shrineSettings.autoBubble then
         bubbleEnabled = true
         getgenv().ActivityStatus.current = "Bubble Shrine Activated"
         getgenv().ActivityStatus.trigger = true
         bubble()
+
+        local lastDonate = os.time()
         bubbleThread = task.spawn(function()
             while bubbleEnabled do
-                task.wait(72000)
-                if bubbleEnabled then
+                task.wait(60)
+                if not bubbleEnabled then break end
+                if os.time() - lastDonate >= DONATE_INTERVAL then
                     getgenv().ActivityStatus.current = "Bubble Shrine Activated"
                     getgenv().ActivityStatus.trigger = true
                     bubble()
+                    lastDonate = os.time()
                 end
             end
         end)
     end
-    
-    -- Auto Dreamer (20h cycle)
+
+    -- Auto Dreamer (20h poll loop)
     if shrineSettings.autoDreamer then
         dreamerEnabled = true
         getgenv().ActivityStatus.current = "Dreamer Shrine Activated"
         getgenv().ActivityStatus.trigger = true
         dreamer()
+
+        local lastDonate = os.time()
         dreamerThread = task.spawn(function()
             while dreamerEnabled do
-                task.wait(72000)
-                if dreamerEnabled then
+                task.wait(60)
+                if not dreamerEnabled then break end
+                if os.time() - lastDonate >= DONATE_INTERVAL then
                     getgenv().ActivityStatus.current = "Dreamer Shrine Activated"
                     getgenv().ActivityStatus.trigger = true
                     dreamer()
+                    lastDonate = os.time()
                 end
             end
         end)
     end
-    
+
     -- Auto Perm Shrine
     if shrineSettings.autoPermShrine then
         permEnabled = true
