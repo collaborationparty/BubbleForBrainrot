@@ -51,7 +51,7 @@ do
     end
 end
 
-local BUBBLE_AMOUNT = 400
+local BUBBLE_AMOUNT = 500
 local DREAMER_AMOUNT = 15
 
 -- Notification dedupe
@@ -197,25 +197,6 @@ local function findBubblePotion()
     return nil
 end
 
-local function getDreamerAmount()
-    local data = LocalData:Get()
-    if not data or not data.Potions then return 0 end
-    
-    -- Dreamer shrine uses a specific potion. Debug shows DreamerBlessing but
-    -- the exact potion that fuels it — we use amount passing 15 but ALSO need
-    -- to know how much of the actual currency is left. We'll scan for the
-    -- shrine's potion type. For now, assume the same NORMAL potions work and
-    -- check if there's ANY potion with enough amount for 15. If none, notify.
-    --
-    -- Better: read available amount from LocalData.DreamerShrine if it exists.
-    if data.DreamerShrine and data.DreamerShrine.Amount then
-        return data.DreamerShrine.Amount
-    end
-    
-    -- Fallback: unknown source
-    return -1
-end
-
 -- ======================================
 -- WEBHOOK NOTIFY
 -- ======================================
@@ -241,7 +222,7 @@ local function notifyUser(shrineName, message)
                 allowed_mentions = {parse = {"users"}},
                 embeds = {{
                     title = "⚠️ " .. shrineName .. " Out of Stock",
-                    description = "**" .. player.Name .. "** — " .. message,
+                    description = "**" .. player.Name .. "** - " .. message,
                     color = 0xFF0000,
                     footer = {text = "Renoa Hub * " .. os.date("%Y-%m-%d %H:%M:%S")}
                 }}
@@ -279,7 +260,7 @@ local function bubbleLoop()
             else
                 if not bubbleNotified then
                     bubbleNotified = true
-                    notifyUser("Bubble Shrine", "No potion has enough stock to donate 400.")
+                    notifyUser("Bubble Shrine", "No potion has enough stock to donate 500.")
                 end
             end
         end
@@ -297,20 +278,16 @@ local function dreamerLoop()
         if isDreamerShrineBuffActive() then
             -- Buff still active, skip
         else
-            -- Fire donation with whatever amount is passed (15)
             pcall(function() Remote:InvokeServer("DonateToDreamerShrine", DREAMER_AMOUNT) end)
             
             getgenv().ActivityStatus.current = "Donated " .. DREAMER_AMOUNT .. " to Dreamer Shrine"
             getgenv().ActivityStatus.trigger = true
             task.wait(2)
             
-            -- Check if donation actually consumed anything
-            -- If the shrine has a cooldown flag or if the buff still isn't active after donation,
-            -- we consider it failed and notify.
             if not isDreamerShrineBuffActive() then
                 if not dreamerNotified then
                     dreamerNotified = true
-                    notifyUser("Dreamer Shrine", "Dreamer Shrine donation failed — ran out of Dreamer currency.")
+                    notifyUser("Dreamer Shrine", "Dreamer Shrine donation failed - ran out of Dreamer Shards.")
                 end
             else
                 dreamerNotified = false
@@ -326,12 +303,12 @@ ShrineTab:Section({ Title = "Bubble Shrine" })
 
 ShrineTab:Paragraph({
     Title = "How it works",
-    Desc = "Donates 400 of the first potion that has enough stock (Lucky/Speed/Coins/Mythic/Tickets levels 1-3). Auto-repeats when the buff expires. Pings you via online webhook if no potion has 400+.",
+    Desc = "Donates 500 of the first potion that has enough stock (Lucky/Speed/Coins/Mythic/Tickets levels 1-3). Auto-repeats when the buff expires. Pings you via online webhook if no potion has 500+.",
 })
 
 ShrineTab:Toggle({
     Title = "Auto Bubble Shrine",
-    Desc = "Donates 400 of an available potion when buff expires (checks every 5 min)",
+    Desc = "Donates 500 of an available potion when buff expires (checks every 5 min)",
     Value = shrineSettings.autoBubble or false,
     Callback = function(v)
         bubbleEnabled = v
