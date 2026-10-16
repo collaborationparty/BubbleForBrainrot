@@ -534,15 +534,6 @@ end
 -- ======================================
 -- INCENTIVE REWARD CLAIMER
 -- ======================================
-local function getClaimedRewardsCount()
-    local d = LocalData:Get()
-    if not d or not d.GlobalIncentive then return 0, 0 end
-    local cr, ci = 0, 0
-    for _ in pairs(d.GlobalIncentive.ClaimedRewards or {}) do cr = cr + 1 end
-    for _ in pairs(d.GlobalIncentive.ClaimedIncentives or {}) do ci = ci + 1 end
-    return cr, ci
-end
-
 local function claimIncentiveRewards()
     local pg = player:FindFirstChild("PlayerGui")
     local sg = pg and pg:FindFirstChild("ScreenGui")
@@ -550,9 +541,7 @@ local function claimIncentiveRewards()
     
     if not gi then return end
     
-    local wasVisible = gi.Visible
-    gi.Visible = true
-    task.wait(0.5)
+    -- Do NOT toggle gi.Visible — button signals work even when hidden
     
     -- Claim Rewards track (Score-based) - 15 tiers
     local scroller = gi.Frame
@@ -596,11 +585,6 @@ local function claimIncentiveRewards()
             end
         end
     end
-    
-    task.wait(0.5)
-    if not wasVisible then
-        gi.Visible = false
-    end
 end
 
 local function startIncentiveClaimer()
@@ -620,13 +604,6 @@ local function stopIncentiveClaimer()
     if incentiveClaimThread then
         task.cancel(incentiveClaimThread)
         incentiveClaimThread = nil
-    end
-    
-    local pg = player:FindFirstChild("PlayerGui")
-    local sg = pg and pg:FindFirstChild("ScreenGui")
-    local gi = sg and sg:FindFirstChild("GlobalIncentive")
-    if gi then
-        pcall(function() gi.Visible = false end)
     end
 end
 
@@ -842,7 +819,7 @@ task.spawn(function()
                     local questToDo = nil
                     for _, q in ipairs(quests) do
                         local curr = q.currency or ""
-                        if q.Type == "Collect" and curr:lower():find("pearl") then
+                        if q.type == "Collect" and curr:lower():find("pearl") then
                             if not skippedQuests[q.id] then
                                 questToDo = q
                                 break
