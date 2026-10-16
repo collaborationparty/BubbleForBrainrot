@@ -9,12 +9,15 @@ local ShrineTab = Window:Tab({ Title = "Shrine", Icon = "landmark" })
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
 
 local RemoteFunction = ReplicatedStorage.Shared.Framework.Network.Remote.RemoteFunction
 local Remote = require(ReplicatedStorage.Shared.Framework.Network.Remote)
 local RemoteEvent = ReplicatedStorage.Shared.Framework.Network.Remote.RemoteEvent
 local LocalData = require(ReplicatedStorage.Client.Framework.Services.LocalData)
+
+local request = http_request or request or (syn and syn.request)
 
 -- ======================================
 -- LOAD SAVED SETTINGS
@@ -34,27 +37,26 @@ local bubbleThread = nil
 local dreamerThread = nil
 local permThread = nil
 
-local DONATE_INTERVAL = 72000  -- 20 hours in seconds
+local CHECK_INTERVAL = 300  -- 5 minutes
 
--- Bubble Shrine
-local POTION_TYPES = {"Lucky", "Speed", "Coins", "Mythic", "Tickets"}
-local POTION_LEVELS = {1, 2, 3}
-
-local potionOptions = {}
-for _, name in ipairs(POTION_TYPES) do
-    for _, level in ipairs(POTION_LEVELS) do
-        table.insert(potionOptions, name .. " " .. level)
+-- Bubble Shrine potion list (no dropdown, hardcoded)
+local BUBBLE_POTION_OPTIONS = {}
+do
+    local POTION_TYPES = {"Lucky", "Speed", "Coins", "Mythic", "Tickets"}
+    local POTION_LEVELS = {1, 2, 3}
+    for _, name in ipairs(POTION_TYPES) do
+        for _, level in ipairs(POTION_LEVELS) do
+            table.insert(BUBBLE_POTION_OPTIONS, { Name = name, Level = level })
+        end
     end
 end
 
-local BUBBLE = {
-    Level = 1,
-    Type = "Potion",
-    Name = shrineSettings.bubbleType or "Lucky 1",
-    Amount = shrineSettings.bubbleAmount or 500
-}
+local BUBBLE_AMOUNT = 400
+local DREAMER_AMOUNT = 15
 
-local DREAMER_AMOUNT = shrineSettings.dreamerAmount or 15
+-- Notification dedupe
+local bubbleNotified = false
+local dreamerNotified = false
 
 -- Perm Shrine
 local permSelectedPotion = shrineSettings.permPotion or "Lucky 6"
@@ -152,23 +154,169 @@ local function rerollPermShrine()
     end)
 end
 
--- Old shrine functions
-local function bubble()
-    local parts = {}
-    for part in string.gmatch(BUBBLE.Name, "%S+") do
-        table.insert(parts, part)
-    end
-    local potionName = table.concat(parts, " ", 1, #parts - 1)
-    local level = tonumber(parts[#parts]) or 1
-    
-    BUBBLE.Level = level
-    BUBBLE.Name = potionName
-    
-    pcall(function() Remote:InvokeServer("DonateToShrine", BUBBLE) end)
+-- ======================================
+-- BUFF DETECTION
+-- ======================================
+local function isBubbleShrineBuffActive()
+    local pg = player:FindFirstChild("PlayerGui")
+    local sg = pg and pg:FindFirstChild("ScreenGui")
+    local buffs = sg and sg:FindFirstChild("Buffs")
+    local clip = buffs and buffs:FindFirstChild("Clip")
+    local items = clip and clip:FindFirstChild("Items")
+    if not items then return false end
+    return items:FindFirstChild("ShrineBlessing") ~= nil
 end
 
-local function dreamer()
-    pcall(function() Remote:InvokeServer("DonateToDreamerShrine", DREAMER_AMOUNT) end)
+local function isDreamerShrineBuffActive()
+    local pg = player:FindFirstChild("PlayerGui")
+    local sg = pg and pg:FindFirstChild("ScreenGui")
+    local buffs = sg and sg:FindFirstChild("Buffs")
+    local clip = buffs and buffs:FindFirstChild("Clip")
+    local items = clip and clip:FindFirstChild("Items")
+    if not items then return false end
+    return items:FindFirstChild("DreamerBlessing") ~= nil
+end
+
+-- ======================================
+-- INVENTORY SCAN FOR BUBBLE SHRINE
+-- ======================================
+local function findBubblePotion()
+    local data = LocalData:Get()
+    if not data or not data.Potions then return nil end
+    
+    for _, option in ipairs(BUBBLE_POTION_OPTIONS) do
+        for _, potion in pairs(data.Potions) do
+            if potion.Name == option.Name and potion.Level == option.Level then
+                if (potion.Amount or 0) >= BUBBLE_AMOUNT then
+                    return potion
+                end
+                break
+            end
+        end
+    end
+    return nil
+end
+
+local function getDreamerAmount()
+    local data = LocalData:Get()
+    if not data or not data.Potions then return 0 end
+    
+    -- Dreamer shrine uses a specific potion. Debug shows DreamerBlessing but
+    -- the exact potion that fuels it — we use amount passing 15 but ALSO need
+    -- to know how much of the actual currency is left. We'll scan for the
+    -- shrine's potion type. For now, assume the same NORMAL potions work and
+    -- check if there's ANY potion with enough amount for 15. If none, notify.
+    --
+    -- Better: read available amount from LocalData.DreamerShrine if it exists.
+    if data.DreamerShrine and data.DreamerShrine.Amount then
+        return data.DreamerShrine.Amount
+    end
+    
+    -- Fallback: unknown source
+    return -1
+end
+
+-- ======================================
+-- WEBHOOK NOTIFY
+-- ======================================
+local function notifyUser(shrineName, message)
+    local webhookURL = settings.webhook and settings.webhook.onlineURL or ""
+    local discordID = settings.webhook and settings.webhook.userId or ""
+    
+    if webhookURL == "" then return end
+    if not request then return end
+    
+    local pingMsg = ""
+    if discordID ~= "" then
+        pingMsg = "<@" .. discordID .. "> "
+    end
+    
+    pcall(function()
+        request({
+            Url = webhookURL,
+            Method = "POST",
+            Headers = {["Content-Type"] = "application/json"},
+            Body = HttpService:JSONEncode({
+                content = pingMsg .. message,
+                allowed_mentions = {parse = {"users"}},
+                embeds = {{
+                    title = "⚠️ " .. shrineName .. " Out of Stock",
+                    description = "**" .. player.Name .. "** — " .. message,
+                    color = 0xFF0000,
+                    footer = {text = "Renoa Hub * " .. os.date("%Y-%m-%d %H:%M:%S")}
+                }}
+            })
+        })
+    end)
+end
+
+-- ======================================
+-- BUBBLE SHRINE LOOP
+-- ======================================
+local function bubbleLoop()
+    while bubbleEnabled do
+        task.wait(CHECK_INTERVAL)
+        if not bubbleEnabled then break end
+        
+        if isBubbleShrineBuffActive() then
+            -- Buff still active, skip
+        else
+            local potion = findBubblePotion()
+            if potion then
+                local payload = {
+                    Level = potion.Level,
+                    Type = "Potion",
+                    Name = potion.Name,
+                    Amount = BUBBLE_AMOUNT
+                }
+                pcall(function() Remote:InvokeServer("DonateToShrine", payload) end)
+                
+                getgenv().ActivityStatus.current = "Donated " .. BUBBLE_AMOUNT .. " " .. potion.Name .. " " .. potion.Level .. " to Bubble Shrine"
+                getgenv().ActivityStatus.trigger = true
+                
+                bubbleNotified = false
+                task.wait(2)
+            else
+                if not bubbleNotified then
+                    bubbleNotified = true
+                    notifyUser("Bubble Shrine", "No potion has enough stock to donate 400.")
+                end
+            end
+        end
+    end
+end
+
+-- ======================================
+-- DREAMER SHRINE LOOP
+-- ======================================
+local function dreamerLoop()
+    while dreamerEnabled do
+        task.wait(CHECK_INTERVAL)
+        if not dreamerEnabled then break end
+        
+        if isDreamerShrineBuffActive() then
+            -- Buff still active, skip
+        else
+            -- Fire donation with whatever amount is passed (15)
+            pcall(function() Remote:InvokeServer("DonateToDreamerShrine", DREAMER_AMOUNT) end)
+            
+            getgenv().ActivityStatus.current = "Donated " .. DREAMER_AMOUNT .. " to Dreamer Shrine"
+            getgenv().ActivityStatus.trigger = true
+            task.wait(2)
+            
+            -- Check if donation actually consumed anything
+            -- If the shrine has a cooldown flag or if the buff still isn't active after donation,
+            -- we consider it failed and notify.
+            if not isDreamerShrineBuffActive() then
+                if not dreamerNotified then
+                    dreamerNotified = true
+                    notifyUser("Dreamer Shrine", "Dreamer Shrine donation failed — ran out of Dreamer currency.")
+                end
+            else
+                dreamerNotified = false
+            end
+        end
+    end
 end
 
 -- ======================================
@@ -176,36 +324,14 @@ end
 -- ======================================
 ShrineTab:Section({ Title = "Bubble Shrine" })
 
-ShrineTab:Dropdown({
-    Title = "Potion Type (Level 1-3)",
-    Values = potionOptions,
-    Value = BUBBLE.Name,
-    Callback = function(v)
-        BUBBLE.Name = v
-        shrineSettings.bubbleType = v
-        getgenv().HubSettings.shrine = shrineSettings
-        saveHubSettings()
-    end,
-})
-
-ShrineTab:Input({
-    Title = "Amount",
-    Value = tostring(BUBBLE.Amount),
-    Placeholder = "500",
-    Callback = function(v)
-        local n = tonumber(v)
-        if n then
-            BUBBLE.Amount = n
-            shrineSettings.bubbleAmount = n
-            getgenv().HubSettings.shrine = shrineSettings
-            saveHubSettings()
-        end
-    end,
+ShrineTab:Paragraph({
+    Title = "How it works",
+    Desc = "Donates 400 of the first potion that has enough stock (Lucky/Speed/Coins/Mythic/Tickets levels 1-3). Auto-repeats when the buff expires. Pings you via online webhook if no potion has 400+.",
 })
 
 ShrineTab:Toggle({
-    Title = "Auto Bubble",
-    Desc = "Donates to Bubble Shrine every 20 hours",
+    Title = "Auto Bubble Shrine",
+    Desc = "Donates 400 of an available potion when buff expires (checks every 5 min)",
     Value = shrineSettings.autoBubble or false,
     Callback = function(v)
         bubbleEnabled = v
@@ -214,24 +340,8 @@ ShrineTab:Toggle({
         saveHubSettings()
         if v then
             if bubbleThread then task.cancel(bubbleThread); bubbleThread = nil end
-
-            getgenv().ActivityStatus.current = "Bubble Shrine Activated"
-            getgenv().ActivityStatus.trigger = true
-            bubble()
-
-            local lastDonate = os.time()
-            bubbleThread = task.spawn(function()
-                while bubbleEnabled do
-                    task.wait(60)
-                    if not bubbleEnabled then break end
-                    if os.time() - lastDonate >= DONATE_INTERVAL then
-                        getgenv().ActivityStatus.current = "Bubble Shrine Activated"
-                        getgenv().ActivityStatus.trigger = true
-                        bubble()
-                        lastDonate = os.time()
-                    end
-                end
-            end)
+            bubbleNotified = false
+            bubbleThread = task.spawn(bubbleLoop)
         else
             if bubbleThread then task.cancel(bubbleThread); bubbleThread = nil end
         end
@@ -243,24 +353,14 @@ ShrineTab:Toggle({
 -- ======================================
 ShrineTab:Section({ Title = "Dreamer Shrine" })
 
-ShrineTab:Input({
-    Title = "Amount",
-    Value = tostring(DREAMER_AMOUNT),
-    Placeholder = "15",
-    Callback = function(v)
-        local n = tonumber(v)
-        if n then
-            DREAMER_AMOUNT = n
-            shrineSettings.dreamerAmount = n
-            getgenv().HubSettings.shrine = shrineSettings
-            saveHubSettings()
-        end
-    end,
+ShrineTab:Paragraph({
+    Title = "How it works",
+    Desc = "Donates 15 Dreamer currency when buff expires (checks every 5 min). Pings you via online webhook when it runs out.",
 })
 
 ShrineTab:Toggle({
-    Title = "Auto Dreamer",
-    Desc = "Donates to Dreamer Shrine every 20 hours",
+    Title = "Auto Dreamer Shrine",
+    Desc = "Donates 15 to Dreamer Shrine when buff expires (checks every 5 min)",
     Value = shrineSettings.autoDreamer or false,
     Callback = function(v)
         dreamerEnabled = v
@@ -269,24 +369,8 @@ ShrineTab:Toggle({
         saveHubSettings()
         if v then
             if dreamerThread then task.cancel(dreamerThread); dreamerThread = nil end
-
-            getgenv().ActivityStatus.current = "Dreamer Shrine Activated"
-            getgenv().ActivityStatus.trigger = true
-            dreamer()
-
-            local lastDonate = os.time()
-            dreamerThread = task.spawn(function()
-                while dreamerEnabled do
-                    task.wait(60)
-                    if not dreamerEnabled then break end
-                    if os.time() - lastDonate >= DONATE_INTERVAL then
-                        getgenv().ActivityStatus.current = "Dreamer Shrine Activated"
-                        getgenv().ActivityStatus.trigger = true
-                        dreamer()
-                        lastDonate = os.time()
-                    end
-                end
-            end)
+            dreamerNotified = false
+            dreamerThread = task.spawn(dreamerLoop)
         else
             if dreamerThread then task.cancel(dreamerThread); dreamerThread = nil end
         end
@@ -477,51 +561,18 @@ ShrineTab:Toggle({
 task.spawn(function()
     task.wait(1.5)
     
-    -- Auto Bubble (20h poll loop)
     if shrineSettings.autoBubble then
         bubbleEnabled = true
-        getgenv().ActivityStatus.current = "Bubble Shrine Activated"
-        getgenv().ActivityStatus.trigger = true
-        bubble()
-
-        local lastDonate = os.time()
-        bubbleThread = task.spawn(function()
-            while bubbleEnabled do
-                task.wait(60)
-                if not bubbleEnabled then break end
-                if os.time() - lastDonate >= DONATE_INTERVAL then
-                    getgenv().ActivityStatus.current = "Bubble Shrine Activated"
-                    getgenv().ActivityStatus.trigger = true
-                    bubble()
-                    lastDonate = os.time()
-                end
-            end
-        end)
+        bubbleNotified = false
+        bubbleThread = task.spawn(bubbleLoop)
     end
-
-    -- Auto Dreamer (20h poll loop)
+    
     if shrineSettings.autoDreamer then
         dreamerEnabled = true
-        getgenv().ActivityStatus.current = "Dreamer Shrine Activated"
-        getgenv().ActivityStatus.trigger = true
-        dreamer()
-
-        local lastDonate = os.time()
-        dreamerThread = task.spawn(function()
-            while dreamerEnabled do
-                task.wait(60)
-                if not dreamerEnabled then break end
-                if os.time() - lastDonate >= DONATE_INTERVAL then
-                    getgenv().ActivityStatus.current = "Dreamer Shrine Activated"
-                    getgenv().ActivityStatus.trigger = true
-                    dreamer()
-                    lastDonate = os.time()
-                end
-            end
-        end)
+        dreamerNotified = false
+        dreamerThread = task.spawn(dreamerLoop)
     end
-
-    -- Auto Perm Shrine
+    
     if shrineSettings.autoPermShrine then
         permEnabled = true
         permRerollNotified = false
@@ -600,8 +651,6 @@ task.spawn(function()
             end
         end)
     end
-    
-    print("[Shrine] Auto-started saved toggles!")
 end)
 
 print("[Shrine] Loaded!")
