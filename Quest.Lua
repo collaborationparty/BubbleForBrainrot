@@ -93,6 +93,10 @@ local HATCH_AMOUNT = questSettings.hatchAmount or 12
 local COIN_CAP = 5000000000000
 local skippedQuests = {}
 
+-- Incentive claimer
+local incentiveClaimRunning = false
+local incentiveClaimThread = nil
+
 -- ======================================
 -- FUNCTIONS
 -- ======================================
@@ -217,13 +221,13 @@ local function completeQuest(quest)
             end
             restorePosition(prevPos)
         elseif quest.rarity then
-            getgenv().questEgg = "Nightmare Egg"
+            getgenv().questEgg = "Spikey Egg"
             local prevPos = savePosition()
-            local pos = EGG_LOCATIONS["Nightmare Egg"]
+            local pos = EGG_LOCATIONS["Spikey Egg"]
             if pos then teleportTo(pos) end
             task.wait(0.5)
             while true do
-                pcall(function() Remote:InvokeServer("HatchEgg", "Nightmare Egg", HATCH_AMOUNT) end)
+                pcall(function() Remote:InvokeServer("HatchEgg", "Spikey Egg", HATCH_AMOUNT) end)
                 task.wait(1)
                 local newQuests = getActiveQuests(quest.id:match("^(.-)%d+$") or "")
                 local stillActive = false
@@ -494,7 +498,6 @@ local function sendSeasonPremiumWebhook(premiumPet)
     if webhookURL == "" then return end
     if not request then return end
     
-    -- Clean the Discord ID
     discordID = tostring(discordID):gsub("%s+", "")
     
     local rarityText = premiumPet.rarity
@@ -524,10 +527,110 @@ local function sendSeasonPremiumWebhook(premiumPet)
                                   "⚠️ Buy the Premium Pass before claiming to get this pet!",
                     color = 0xFF0000,
                     footer = {text = "Renoa Hub * " .. os.date("%Y-%m-%d %H:%M:%S")}
-                }}
+                })
             })
         })
     end)
+end
+
+-- ======================================
+-- INCENTIVE REWARD CLAIMER
+-- ======================================
+local function getClaimedRewardsCount()
+    local d = LocalData:Get()
+    if not d or not d.GlobalIncentive then return 0, 0 end
+    local cr, ci = 0, 0
+    for _ in pairs(d.GlobalIncentive.ClaimedRewards or {}) do cr = cr + 1 end
+    for _ in pairs(d.GlobalIncentive.ClaimedIncentives or {}) do ci = ci + 1 end
+    return cr, ci
+end
+
+local function claimIncentiveRewards()
+    local pg = player:FindFirstChild("PlayerGui")
+    local sg = pg and pg:FindFirstChild("ScreenGui")
+    local gi = sg and sg:FindFirstChild("GlobalIncentive")
+    
+    if not gi then return end
+    
+    local wasVisible = gi.Visible
+    gi.Visible = true
+    task.wait(0.5)
+    
+    -- Claim Rewards track (Score-based) — 15 tiers
+    local scroller = gi.Frame
+        and gi.Frame:FindFirstChild("Content")
+        and gi.Frame.Content:FindFirstChild("Rewards")
+        and gi.Frame.Content.Rewards:FindFirstChild("ScrollingFrame")
+    
+    if scroller then
+        for _, segment in ipairs(scroller:GetChildren()) do
+            if segment.Name:find("^Segment") then
+                for _, reward in ipairs(segment:GetChildren()) do
+                    if reward.Name:find("^Reward") then
+                        local claimBtn = reward:FindFirstChild("Cover")
+                            and reward.Cover:FindFirstChild("Claim")
+                            and reward.Cover.Claim:FindFirstChild("Button")
+                        if claimBtn and claimBtn:IsA("ImageButton") then
+                            pcall(function() firesignal(claimBtn.Activated) end)
+                            task.wait(0.6)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Claim Global track (Bubble-based) — 13 tiers
+    local globalContent = gi:FindFirstChild("Global")
+        and gi.Global:FindFirstChild("List")
+        and gi.Global.List:FindFirstChild("Content")
+        and gi.Global.List.Content:FindFirstChild("Rewards")
+    
+    if globalContent then
+        for _, item in ipairs(globalContent:GetChildren()) do
+            if item.Name == "Template" then
+                local claimBtn = item:FindFirstChild("Claim")
+                    and item.Claim:FindFirstChild("Button")
+                if claimBtn and claimBtn:IsA("ImageButton") then
+                    pcall(function() firesignal(claimBtn.Activated) end)
+                    task.wait(0.6)
+                end
+            end
+        end
+    end
+    
+    task.wait(0.5)
+    if not wasVisible then
+        gi.Visible = false
+    end
+end
+
+local function startIncentiveClaimer()
+    if incentiveClaimThread then return end
+    incentiveClaimRunning = true
+    
+    incentiveClaimThread = task.spawn(function()
+        while incentiveClaimRunning do
+            pcall(function() claimIncentiveRewards() end)
+            task.wait(60)
+        end
+    end)
+end
+
+local function stopIncentiveClaimer()
+    incentiveClaimRunning = false
+    if incentiveClaimThread then
+        task.cancel(incentiveClaimThread)
+        incentiveClaimThread = nil
+    end
+    
+    -- Hide UI if still showing
+    local pg = player:FindFirstChild("PlayerGui")
+    local sg = pg and pg:FindFirstChild("ScreenGui")
+    local gi = sg and sg:FindFirstChild("GlobalIncentive")
+    if gi then
+        pcall(function() gi.Visible = false end)
+    end
 end
 
 -- ======================================
@@ -696,19 +799,38 @@ QuestTab:Toggle({
     end,
 })
 
+QuestTab:Paragraph({
+    Title = "Auto Claim Incentive Rewards Info",
+    Desc = "Auto claims unlocked tiers on BOTH tracks (Score + Bubbles) every 60s. Works even if the event UI is hidden.",
+})
+
+QuestTab:Toggle({
+    Title = "Auto Claim Incentive Rewards",
+    Desc = "Loops every 60s — claims all currently unlocked tiers on both tracks",
+    Value = questSettings.autoClaimIncentive or false,
+    Callback = function(v)
+        questSettings.autoClaimIncentive = v
+        getgenv().HubSettings.quest = questSettings
+        saveHubSettings()
+        if v then
+            startIncentiveClaimer()
+        else
+            stopIncentiveClaimer()
+        end
+    end,
+})
+
 -- ======================================
 -- AUTO-START SAVED TOGGLES
 -- ======================================
 task.spawn(function()
     task.wait(1.5)
     
-    -- Auto Season Quests
     if questSettings.autoSeason then
         seasonRunning = true
         seasonThread = task.spawn(questLoop("challenge"))
     end
     
-    -- Auto Global Incentive
     if questSettings.autoGlobal then
         globalRunning = true
         globalThread = task.spawn(function()
@@ -750,10 +872,9 @@ task.spawn(function()
         end)
     end
     
-    -- NOTE: Auto Claim Season Pass is NOT persisted (no settings save),
-    -- so it never auto-starts. User must toggle it manually each session.
-    
-    print("[Quest] Auto-started saved toggles!")
+    if questSettings.autoClaimIncentive then
+        startIncentiveClaimer()
+    end
 end)
 
 print("[Quest] Loaded!")
