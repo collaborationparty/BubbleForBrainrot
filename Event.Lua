@@ -32,9 +32,7 @@ local eventSettings = settings.event
 -- SETTINGS
 -- ======================================
 local selectedEvents = eventSettings.selectedEvents or {"Luck Event"}
-if type(selectedEvents) == "string" then
-    selectedEvents = {selectedEvents}
-end
+if type(selectedEvents) == "string" then selectedEvents = {selectedEvents} end
 
 local eventRunning = false
 local eventThread = nil
@@ -68,55 +66,6 @@ local HALLOWEEN_UPGRADES = {
 local selectedUpgrades = eventSettings.selectedUpgrades or {}
 if type(selectedUpgrades) == "string" then selectedUpgrades = {selectedUpgrades} end
 
--- ======================================
--- REBIRTH SHOP (15 items — hw26rebirth-shop)
--- ======================================
-local REBIRTH_SHOP_ITEMS = {
-    "Lucky Lvl 7",
-    "Speed Lvl 7",
-    "Mythic Lvl 7",
-    "Infinity Elixir x25",
-    "Secret Elixir x25",
-    "Ultra Infinity Elixir x25",
-    "Purple Fragment",
-    "Rainbow Fragment",
-    "Shrine Ticket",
-    "Sinister Elixir Lvl 4 x10",
-    "Luck Rune Tier 3 x3",
-    "Secret Rune Tier 3 x3",
-    "Bubbles Rune Tier 3 x3",
-    "XL Eerie Pumpkin",
-    "Eerie Pumpkin",
-}
-
-local selectedRebirthItems = eventSettings.selectedRebirthItems or {}
-if type(selectedRebirthItems) == "string" then selectedRebirthItems = {selectedRebirthItems} end
-
--- ======================================
--- EVENT SHOP (13 items — spooky-shop)
--- ======================================
-local EVENT_SHOP_ITEMS = {
-    "Sinister Elixir Lvl 4",
-    "Shadow Crystal",
-    "Lucky Lvl 7",
-    "Speed Lvl 7",
-    "Mythic Lvl 7",
-    "Infinity Elixir",
-    "Secret Elixir",
-    "Ultra Infinity Elixir",
-    "Green Fragment",
-    "Blue Fragment",
-    "Boost Crystal",
-    "XL Creepy Hydra",
-    "Creepy Hydra",
-}
-
-local selectedShopItems = eventSettings.selectedShopItems or {}
-if type(selectedShopItems) == "string" then selectedShopItems = {selectedShopItems} end
-
--- ======================================
--- THREAD HANDLES
--- ======================================
 local halloweenUpgradeBuying = false
 local halloweenUpgradeThread = nil
 local rebirthShopBuying = false
@@ -125,6 +74,44 @@ local eventShopBuying = false
 local eventShopThread = nil
 local halloweenRebirthAuto = false
 local halloweenRebirthThread = nil
+
+-- ======================================
+-- DYNAMIC SHOP SCANNER
+-- ======================================
+local function getShopItems(shopKey)
+    local items = {}
+    local ok, Shops = pcall(function() return require(ReplicatedStorage.Shared.Data.Shops) end)
+    if ok and Shops and Shops[shopKey] and Shops[shopKey].PermanentItems then
+        for i, slot in ipairs(Shops[shopKey].PermanentItems) do
+            local p = slot.Item or slot
+            local prod = p.Product
+            if prod then
+                local name = prod.Name or "Unknown"
+                local level = prod.Level
+                local isXL = prod.XL
+                
+                if level then
+                    name = name .. " Lvl " .. tostring(level)
+                elseif isXL then
+                    name = name .. " (XL)"
+                elseif prod.Amount and prod.Amount > 1 then
+                    name = name .. " x" .. tostring(prod.Amount)
+                end
+                table.insert(items, name)
+            end
+        end
+    end
+    return items
+end
+
+local currentRebirthShopItems = getShopItems("hw26rebirth-shop")
+local currentEventShopItems = getShopItems("spooky-shop")
+
+local selectedRebirthItems = eventSettings.selectedRebirthItems or {}
+if type(selectedRebirthItems) == "string" then selectedRebirthItems = {selectedRebirthItems} end
+
+local selectedShopItems = eventSettings.selectedShopItems or {}
+if type(selectedShopItems) == "string" then selectedShopItems = {selectedShopItems} end
 
 -- ======================================
 -- EVENT BOARD READER
@@ -279,13 +266,13 @@ local function sendSummonWebhook(success)
     local color = 0
     
     if success then
-        content = "Summon Cloud Rift Success"
+        content = "Summon Cloud Rift Success✅"
         color = 0x00FF00
     else
         if discordID ~= "" then
-            content = "Failed Summoning Cloud Rift <@" .. discordID .. ">"
+            content = "Failed Summoning Cloud Rift❌ <@" .. discordID .. ">"
         else
-            content = "Failed Summoning Cloud Rift"
+            content = "Failed Summoning Cloud Rift❌"
         end
         color = 0xFF0000
     end
@@ -302,7 +289,7 @@ local function sendSummonWebhook(success)
                 content = content,
                 allowed_mentions = {parse = {"users"}},
                 embeds = {{
-                    title = success and "Rift Summoned" or "Summon Failed",
+                    title = success and "✅ Rift Summoned" or "❌ Summon Failed",
                     description = "**" .. player.Name .. "**",
                     color = color,
                     footer = {text = "Renoa Hub * " .. os.date("%Y-%m-%d %H:%M:%S")}
@@ -310,117 +297,6 @@ local function sendSummonWebhook(success)
             })
         })
     end)
-end
-
--- ======================================
--- TRUE SECRET DETECTION
--- ======================================
-local function isTrueSecret(info)
-    if not info then return false end
-    if info.Rarity ~= "Secret" then return false end
-    if info.Celestial then return false end
-    if info.Infinity then return false end
-    if info.Void then return false end
-    return true
-end
-
--- ======================================
--- SKY ALTAR FUNCTIONS
--- ======================================
-local function getSkyAltarPets()
-    local groups = {
-        Celestial = {
-            Normal = {}, Shiny = {}, Mythic = {}, ShinyMythic = {}, XL = {},
-        },
-        Secret = {
-            Normal = {}, Shiny = {}, Mythic = {}, ShinyMythic = {}, XL = {},
-        },
-    }
-    
-    local data = LocalData:Get()
-    if data and data.Pets then
-        for _, pet in pairs(data.Pets) do
-            if not pet.Locked then
-                local info = Pets[pet.Name]
-                if info and info.Egg == "Stratus Egg" then
-                    local variantGroup = "Normal"
-                    if pet.XL then
-                        variantGroup = "XL"
-                    elseif pet.Shiny and pet.Mythic then
-                        variantGroup = "ShinyMythic"
-                    elseif pet.Mythic then
-                        variantGroup = "Mythic"
-                    elseif pet.Shiny then
-                        variantGroup = "Shiny"
-                    end
-                    
-                    if info.Celestial then
-                        table.insert(groups.Celestial[variantGroup], pet)
-                    elseif isTrueSecret(info) then
-                        table.insert(groups.Secret[variantGroup], pet)
-                    end
-                end
-            end
-        end
-    end
-    
-    return groups
-end
-
-local function getCooldownText()
-    local playerGui = player:FindFirstChild("PlayerGui")
-    if playerGui then
-        local skyAltar = playerGui:FindFirstChild("ScreenGui") and playerGui.ScreenGui:FindFirstChild("SkyAltar")
-        if skyAltar then
-            local cooldown = skyAltar:FindFirstChild("Frame") and skyAltar.Frame:FindFirstChild("Main") and skyAltar.Frame.Main:FindFirstChild("Cooldown")
-            if cooldown then
-                local current = cooldown:FindFirstChild("Current")
-                if current then
-                    return current.Text
-                end
-            end
-        end
-    end
-    return nil
-end
-
-local function parseCooldown(text)
-    if not text then return nil end
-    local minutes, seconds = text:match("(%d+):(%d+)")
-    if minutes and seconds then
-        return tonumber(minutes) * 60 + tonumber(seconds)
-    end
-    local secondsOnly = text:match("(%d+)s")
-    if secondsOnly then
-        return tonumber(secondsOnly)
-    end
-    return nil
-end
-
-local function useSkyAltar(pets)
-    local playerGui = player:FindFirstChild("PlayerGui")
-    local skyAltar = playerGui and playerGui:FindFirstChild("ScreenGui") and playerGui.ScreenGui:FindFirstChild("SkyAltar")
-    
-    if skyAltar then
-        skyAltar.Visible = true
-        task.wait(0.5)
-        
-        local payload = {}
-        for i = 1, 3 do
-            table.insert(payload, tostring(pets[i].Id))
-        end
-        
-        local ok = pcall(function()
-            RemoteFunction:InvokeServer("UseRebirthMachine", "SkyAltar", payload)
-        end)
-        
-        task.wait(2)
-        
-        skyAltar.Visible = false
-        
-        return ok
-    end
-    return false
 end
 
 -- ======================================
@@ -597,13 +473,13 @@ EventTab:Toggle({
 })
 
 -- ======================================
--- UI - REBIRTH SHOP
+-- UI - REBIRTH SHOP (Dynamic)
 -- ======================================
 EventTab:Section({ Title = "Rebirth Shop" })
 
-EventTab:Dropdown({
+local rebirthShopDropdown = EventTab:Dropdown({
     Title = "Select Items (Multi-Select)",
-    Values = REBIRTH_SHOP_ITEMS,
+    Values = currentRebirthShopItems,
     Value = selectedRebirthItems,
     Multi = true,
     Callback = function(v)
@@ -615,6 +491,18 @@ EventTab:Dropdown({
         eventSettings.selectedRebirthItems = selectedRebirthItems
         getgenv().HubSettings.event = eventSettings
         saveHubSettings()
+    end,
+})
+
+EventTab:Button({
+    Title = "Re Scan Rebirth Shop",
+    Desc = "Refreshes the list of items",
+    Callback = function()
+        currentRebirthShopItems = getShopItems("hw26rebirth-shop")
+        for i = #rebirthShopDropdown.Values, 1, -1 do rebirthShopDropdown.Values[i] = nil end
+        for _, v in ipairs(currentRebirthShopItems) do table.insert(rebirthShopDropdown.Values, v) end
+        pcall(function() rebirthShopDropdown:Select(rebirthShopDropdown.Value) end)
+        print("[Event] Rebirth Shop Rescanned.")
     end,
 })
 
@@ -634,7 +522,7 @@ EventTab:Toggle({
                         if not rebirthShopBuying then break end
                         local value = type(item) == "table" and item[1] or item
                         local slotIndex = nil
-                        for i, name in ipairs(REBIRTH_SHOP_ITEMS) do
+                        for i, name in ipairs(currentRebirthShopItems) do
                             if name == value then slotIndex = i; break end
                         end
                         if slotIndex then
@@ -652,13 +540,13 @@ EventTab:Toggle({
 })
 
 -- ======================================
--- UI - EVENT SHOP
+-- UI - EVENT SHOP (Dynamic)
 -- ======================================
 EventTab:Section({ Title = "Event Shop" })
 
-EventTab:Dropdown({
+local eventShopDropdown = EventTab:Dropdown({
     Title = "Select Items (Multi-Select)",
-    Values = EVENT_SHOP_ITEMS,
+    Values = currentEventShopItems,
     Value = selectedShopItems,
     Multi = true,
     Callback = function(v)
@@ -670,6 +558,18 @@ EventTab:Dropdown({
         eventSettings.selectedShopItems = selectedShopItems
         getgenv().HubSettings.event = eventSettings
         saveHubSettings()
+    end,
+})
+
+EventTab:Button({
+    Title = "Re Scan Event Shop",
+    Desc = "Refreshes the list of items",
+    Callback = function()
+        currentEventShopItems = getShopItems("spooky-shop")
+        for i = #eventShopDropdown.Values, 1, -1 do eventShopDropdown.Values[i] = nil end
+        for _, v in ipairs(currentEventShopItems) do table.insert(eventShopDropdown.Values, v) end
+        pcall(function() eventShopDropdown:Select(eventShopDropdown.Value) end)
+        print("[Event] Event Shop Rescanned.")
     end,
 })
 
@@ -689,7 +589,7 @@ EventTab:Toggle({
                         if not eventShopBuying then break end
                         local value = type(item) == "table" and item[1] or item
                         local slotIndex = nil
-                        for i, name in ipairs(EVENT_SHOP_ITEMS) do
+                        for i, name in ipairs(currentEventShopItems) do
                             if name == value then slotIndex = i; break end
                         end
                         if slotIndex then
@@ -797,7 +697,7 @@ EventTab:Toggle({
                     end
                     
                     local higherPriorityActive = false
-                    if isRiftExists("corruptshadow-rift") or isRiftExists("shadow-rift") or isRiftExists("doodle-rift") then
+                    if isRiftExists("corruptshadow-rift") or isRiftExists("overlord-rift") or isRiftExists("shadow-rift") or isRiftExists("doodle-rift") then
                         higherPriorityActive = true
                     end
                     
@@ -890,7 +790,7 @@ EventTab:Toggle({
 EventTab:Section({ Title = "None" })
 
 EventTab:Paragraph({
-    Title = "Warning",
+    Title = "⚠️ Warning",
     Desc = "Make sure to LOCK your Rainshine if you don't want it to be used!",
 })
 
@@ -1040,7 +940,7 @@ task.spawn(function()
                     if not rebirthShopBuying then break end
                     local value = type(item) == "table" and item[1] or item
                     local slotIndex = nil
-                    for i, name in ipairs(REBIRTH_SHOP_ITEMS) do
+                    for i, name in ipairs(currentRebirthShopItems) do
                         if name == value then slotIndex = i; break end
                     end
                     if slotIndex then
@@ -1061,7 +961,7 @@ task.spawn(function()
                     if not eventShopBuying then break end
                     local value = type(item) == "table" and item[1] or item
                     local slotIndex = nil
-                    for i, name in ipairs(EVENT_SHOP_ITEMS) do
+                    for i, name in ipairs(currentEventShopItems) do
                         if name == value then slotIndex = i; break end
                     end
                     if slotIndex then
@@ -1129,7 +1029,7 @@ task.spawn(function()
                 end
                 
                 local higherPriorityActive = false
-                if isRiftExists("corruptshadow-rift") or isRiftExists("shadow-rift") or isRiftExists("doodle-rift") then
+                if isRiftExists("corruptshadow-rift") or isRiftExists("overlord-rift") or isRiftExists("shadow-rift") or isRiftExists("doodle-rift") then
                     higherPriorityActive = true
                 end
                 
