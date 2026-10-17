@@ -93,15 +93,12 @@ local function shouldDeleteByRarity(pet, info)
 end
 
 -- ======================================
--- REBIRTH MACHINE
+-- REBIRTH MACHINE (NORMAL)
 -- ======================================
 local fuserActive = false
 local loopThread = nil
 local targetPetNamesString = ""
 local selectedVariant = "Normal"
-
-local fuseAllActive = false
-local fuseAllThread = nil
 
 local function isCorrectVariant(pet)
     if selectedVariant == "Shiny Mythic" then
@@ -255,7 +252,7 @@ PetTab:Toggle({
 })
 
 -- ======================================
--- UI - REBIRTH MACHINE
+-- UI - REBIRTH MACHINE (NORMAL)
 -- ======================================
 PetTab:Section({ Title = "Rebirth Machine" })
 
@@ -309,6 +306,9 @@ local trackerParagraph = PetTab:Paragraph({
     Title = "Last Used: None",
     Desc = "Waiting for first use...",
 })
+
+local fuseAllActive = false
+local fuseAllThread = nil
 
 PetTab:Toggle({
     Title = "Auto Rebirth Machine (All Unlocked Pets)",
@@ -422,22 +422,145 @@ PetTab:Toggle({
 })
 
 -- ======================================
+-- UI - ADMIN REBIRTH MACHINE (AT BOTTOM)
+-- ======================================
+PetTab:Section({ Title = "Admin Rebirth Machine" })
+
+PetTab:Paragraph({
+    Title = "⚠️ Requirement",
+    Desc = "Requires 4 Admin Abuse Secrets (e.g., The Darkenedlord) of the SAME variant. Make sure your valuable Admin pets are LOCKED!",
+})
+
+local adminTrackerParagraph = PetTab:Paragraph({
+    Title = "Last Used: None",
+    Desc = "Waiting for first use...",
+})
+
+local adminFuserActive = false
+local adminFuserThread = nil
+
+local function isAdminPet(pet, info)
+    if not info then return false end
+    return info.Tag == "Shadow Admin Abuse" or info.Egg == "Admin Shadow Egg"
+end
+
+PetTab:Toggle({
+    Title = "Auto Admin Rebirth Machine",
+    Desc = "Uses 4 Admin Abuse secrets of the same variant automatically",
+    Value = petSettings.autoAdminRebirth or false,
+    Callback = function(v)
+        adminFuserActive = v
+        petSettings.autoAdminRebirth = v
+        getgenv().HubSettings.pets = petSettings
+        saveHubSettings()
+        
+        if v then
+            pcall(function() 
+                adminTrackerParagraph:SetTitle("Last Used: None")
+                adminTrackerParagraph:SetDesc("Waiting for first use...")
+            end)
+            
+            adminFuserThread = task.spawn(function()
+                while adminFuserActive do
+                    task.wait(3)
+                    
+                    local data = LocalData:Get()
+                    if not data or not data.Pets then
+                        continue
+                    end
+                    
+                    local groups = {Normal = {}, Shiny = {}, Mythic = {}, ShinyMythic = {}}
+                    
+                    for _, pet in pairs(data.Pets) do
+                        if not pet.Locked then
+                            local info = Pets[pet.Name]
+                            if isAdminPet(pet, info) then
+                                if pet.Shiny and pet.Mythic then table.insert(groups.ShinyMythic, pet)
+                                elseif pet.Shiny then table.insert(groups.Shiny, pet)
+                                elseif pet.Mythic then table.insert(groups.Mythic, pet)
+                                else table.insert(groups.Normal, pet)
+                                end
+                            end
+                        end
+                    end
+                    
+                    local selectedGroup = nil
+                    local selectedVariant = ""
+                    
+                    if #groups.Normal >= 4 then selectedGroup = groups.Normal; selectedVariant = "Normal"
+                    elseif #groups.Shiny >= 4 then selectedGroup = groups.Shiny; selectedVariant = "Shiny"
+                    elseif #groups.Mythic >= 4 then selectedGroup = groups.Mythic; selectedVariant = "Mythic"
+                    elseif #groups.ShinyMythic >= 4 then selectedGroup = groups.ShinyMythic; selectedVariant = "Shiny Mythic"
+                    end
+                    
+                    if selectedGroup then
+                        local payload = {}
+                        local usedNames = {}
+                        for i = 1, 4 do
+                            table.insert(payload, tostring(selectedGroup[i].Id))
+                            table.insert(usedNames, selectedGroup[i].Name)
+                        end
+                        
+                        local text = "4x " .. selectedVariant .. " " .. usedNames[1]
+                        
+                        local beforeCount = 0
+                        for _ in pairs(data.Pets) do beforeCount = beforeCount + 1 end
+                        
+                        pcall(function() 
+                            adminTrackerParagraph:SetTitle("Last Used: " .. text)
+                            adminTrackerParagraph:SetDesc("Converting...")
+                        end)
+                        
+                        pcall(function()
+                            NetworkRemote:InvokeServer("UseAdminRebirthMachine", payload)
+                        end)
+                        
+                        task.wait(2)
+                        
+                        local data2 = LocalData:Get()
+                        local afterCount = 0
+                        if data2 and data2.Pets then
+                            for _ in pairs(data2.Pets) do afterCount = afterCount + 1 end
+                        end
+                        
+                        if afterCount < beforeCount then
+                            getgenv().ActivityStatus.current = "Admin Rebirth Machine used: " .. text
+                            getgenv().ActivityStatus.trigger = true
+                            pcall(function() adminTrackerParagraph:SetDesc("Success!") end)
+                        else
+                            pcall(function() adminTrackerParagraph:SetDesc("Failed (Check variants)") end)
+                        end
+                    else
+                        pcall(function()
+                            adminTrackerParagraph:SetDesc("Not enough Admin Secrets of same variant (need 4)")
+                        end)
+                    end
+                end
+            end)
+        else
+            adminFuserActive = false
+            if adminFuserThread then
+                task.cancel(adminFuserThread)
+                adminFuserThread = nil
+            end
+        end
+    end,
+})
+
+-- ======================================
 -- AUTO-START SAVED TOGGLES
 -- ======================================
 task.spawn(function()
     task.wait(1.5)
     
-    -- Auto Delete T3 Legendary
     if petSettings.autoDeleteT3 then
         autoDeleteT3Enabled = true
         autoDeleteT3Thread = task.spawn(function()
             while autoDeleteT3Enabled do
                 local data = LocalData:Get()
-                
                 if data and data.Pets then
                     for _, pet in pairs(data.Pets) do
                         if not autoDeleteT3Enabled then break end
-                        
                         local info = Pets[pet.Name]
                         if isT3Legendary(pet, info) then
                             local amount = pet.Amount or 1
@@ -446,23 +569,19 @@ task.spawn(function()
                         end
                     end
                 end
-                
                 task.wait(10)
             end
         end)
     end
     
-    -- Auto Delete Rarity
     if petSettings.autoDeleteRarity then
         autoDeleteRarityEnabled = true
         autoDeleteRarityThread = task.spawn(function()
             while autoDeleteRarityEnabled do
                 local data = LocalData:Get()
-                
                 if data and data.Pets then
                     for _, pet in pairs(data.Pets) do
                         if not autoDeleteRarityEnabled then break end
-                        
                         local info = Pets[pet.Name]
                         if shouldDeleteByRarity(pet, info) then
                             local amount = pet.Amount or 1
@@ -471,8 +590,46 @@ task.spawn(function()
                         end
                     end
                 end
-                
                 task.wait(10)
+            end
+        end)
+    end
+    
+    if petSettings.autoAdminRebirth then
+        adminFuserActive = true
+        adminFuserThread = task.spawn(function()
+            while adminFuserActive do
+                task.wait(3)
+                local data = LocalData:Get()
+                if data and data.Pets then
+                    local groups = {Normal = {}, Shiny = {}, Mythic = {}, ShinyMythic = {}}
+                    for _, pet in pairs(data.Pets) do
+                        if not pet.Locked then
+                            local info = Pets[pet.Name]
+                            if isAdminPet(pet, info) then
+                                if pet.Shiny and pet.Mythic then table.insert(groups.ShinyMythic, pet)
+                                elseif pet.Shiny then table.insert(groups.Shiny, pet)
+                                elseif pet.Mythic then table.insert(groups.Mythic, pet)
+                                else table.insert(groups.Normal, pet) end
+                            end
+                        end
+                    end
+                    
+                    local selectedGroup = nil
+                    if #groups.Normal >= 4 then selectedGroup = groups.Normal
+                    elseif #groups.Shiny >= 4 then selectedGroup = groups.Shiny
+                    elseif #groups.Mythic >= 4 then selectedGroup = groups.Mythic
+                    elseif #groups.ShinyMythic >= 4 then selectedGroup = groups.ShinyMythic end
+                    
+                    if selectedGroup then
+                        local payload = {}
+                        for i = 1, 4 do table.insert(payload, tostring(selectedGroup[i].Id)) end
+                        pcall(function()
+                            NetworkRemote:InvokeServer("UseAdminRebirthMachine", payload)
+                        end)
+                        task.wait(2)
+                    end
+                end
             end
         end)
     end
