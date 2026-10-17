@@ -22,6 +22,7 @@ local Rifts = require(ReplicatedStorage.Shared.Data.Rifts)
 local Remote = require(ReplicatedStorage.Shared.Framework.Network.Remote)
 local RemoteFunction = ReplicatedStorage.Shared.Framework.Network.Remote.RemoteFunction
 local LocalData = require(ReplicatedStorage.Client.Framework.Services.LocalData)
+local SpecialEventUtil = require(ReplicatedStorage.Shared.Utils.SpecialEventUtil)
 
 -- ======================================
 -- LOAD SAVED SETTINGS
@@ -496,25 +497,6 @@ local function findAdminShadowEgg()
     return nil
 end
 
-local function isAdminEventActive()
-    local pg = player:FindFirstChild("PlayerGui")
-    local sg = pg and pg:FindFirstChild("ScreenGui")
-    local hud = sg and sg:FindFirstChild("HUD")
-    local eventUI = hud and hud:FindFirstChild("Event")
-    
-    if eventUI then
-        local activeEvents = eventUI:FindFirstChild("ActiveEvents")
-        if activeEvents then
-            for _, child in ipairs(activeEvents:GetDescendants()) do
-                if child:IsA("TextLabel") and child.Text:lower():find("admin") then
-                    return true
-                end
-            end
-        end
-    end
-    return false
-end
-
 -- ======================================
 -- UI - SPECIAL EGGS
 -- ======================================
@@ -590,7 +572,6 @@ EggsTab:Toggle({
         if v then
             adminShadowThread = task.spawn(function()
                 local currentAdmin = nil
-                local lastAdminTeleport = 0
                 local returnPos = nil
                 
                 while adminShadowEnabled do
@@ -606,25 +587,21 @@ EggsTab:Toggle({
                             getgenv().ActivityStatus.current = "Doing Admin Shadow Egg right now"
                             getgenv().ActivityStatus.trigger = true
 
-                            local now = tick()
-                            if now - lastAdminTeleport >= 3 then
-                                local root = getRoot()
-                                if root then
-                                    local ok, pivot = pcall(function() return egg:GetPivot() end)
-                                    if ok and pivot then
-                                        root.CFrame = CFrame.new(pivot.Position + Vector3.new(0, 5, 0))
-                                        root.Velocity = Vector3.zero
-                                        root.RotVelocity = Vector3.zero
-                                    end
+                            local root = getRoot()
+                            if root then
+                                local ok, pivot = pcall(function() return egg:GetPivot() end)
+                                if ok and pivot then
+                                    root.CFrame = CFrame.new(pivot.Position + Vector3.new(0, 5, 0))
+                                    root.Velocity = Vector3.zero
+                                    root.RotVelocity = Vector3.zero
                                 end
-                                lastAdminTeleport = now
                             end
 
                             pcall(function() Remote:FireServer("HatchEgg", "Admin Shadow Egg", HATCH_AMOUNT) end)
                             task.wait(0.05)
                             
                         -- If we don't see it, but the event is active
-                        elseif isAdminEventActive() then
+                        elseif SpecialEventUtil.IsEventActive("event-shadowadmin") then
                             if not currentAdmin then
                                 getgenv().ActivityStatus.current = "Admin Event active — moving to Overworld"
                                 getgenv().ActivityStatus.trigger = true
@@ -632,11 +609,10 @@ EggsTab:Toggle({
                                 local root = getRoot()
                                 if root then
                                     if not returnPos then returnPos = root.Position end
-                                    root.CFrame = CFrame.new(-1, 9, -22)
+                                    -- Teleport to exact known spawn point
+                                    root.CFrame = CFrame.new(128, 10, 89)
                                 end
-                                task.wait(2)
-                                pcall(function() Remote:FireServer("TeleportToRift", "admin-shadow-egg") end)
-                                task.wait(3)
+                                task.wait(3) -- wait for chunk
                             end
                             
                         else
@@ -684,7 +660,7 @@ EggsTab:Toggle({
             doodleThread = task.spawn(function()
                 while doodleEnabled do
                     local fourXExists = find4xEgg() ~= nil
-                    local adminActive = isAdminEventActive()
+                    local adminActive = SpecialEventUtil.IsEventActive("event-shadowadmin")
                     if isRiftExists("doodle-rift") and not fourXExists and not adminActive then
                         getgenv().questActive = true
                         getgenv().questEgg = "Doodle Egg"
@@ -1239,7 +1215,6 @@ task.spawn(function()
     if adminShadowEnabled then
         adminShadowThread = task.spawn(function()
             local currentAdmin = nil
-            local lastAdminTeleport = 0
             local returnPos = nil
             
             while adminShadowEnabled do
@@ -1254,24 +1229,20 @@ task.spawn(function()
                         getgenv().ActivityStatus.current = "Doing Admin Shadow Egg right now"
                         getgenv().ActivityStatus.trigger = true
 
-                        local now = tick()
-                        if now - lastAdminTeleport >= 3 then
-                            local root = getRoot()
-                            if root then
-                                local ok, pivot = pcall(function() return egg:GetPivot() end)
-                                if ok and pivot then
-                                    root.CFrame = CFrame.new(pivot.Position + Vector3.new(0, 5, 0))
-                                    root.Velocity = Vector3.zero
-                                    root.RotVelocity = Vector3.zero
-                                end
+                        local root = getRoot()
+                        if root then
+                            local ok, pivot = pcall(function() return egg:GetPivot() end)
+                            if ok and pivot then
+                                root.CFrame = CFrame.new(pivot.Position + Vector3.new(0, 5, 0))
+                                root.Velocity = Vector3.zero
+                                root.RotVelocity = Vector3.zero
                             end
-                            lastAdminTeleport = now
                         end
 
                         pcall(function() Remote:FireServer("HatchEgg", "Admin Shadow Egg", HATCH_AMOUNT) end)
                         task.wait(0.05)
                         
-                    elseif isAdminEventActive() then
+                    elseif SpecialEventUtil.IsEventActive("event-shadowadmin") then
                         if not currentAdmin then
                             getgenv().ActivityStatus.current = "Admin Event active — moving to Overworld"
                             getgenv().ActivityStatus.trigger = true
@@ -1279,10 +1250,8 @@ task.spawn(function()
                             local root = getRoot()
                             if root then
                                 if not returnPos then returnPos = root.Position end
-                                root.CFrame = CFrame.new(-1, 9, -22)
+                                root.CFrame = CFrame.new(128, 10, 89)
                             end
-                            task.wait(2)
-                            pcall(function() Remote:FireServer("TeleportToRift", "admin-shadow-egg") end)
                             task.wait(3)
                         end
                         
@@ -1314,7 +1283,7 @@ task.spawn(function()
         doodleThread = task.spawn(function()
             while doodleEnabled do
                 local fourXExists = find4xEgg() ~= nil
-                local adminActive = isAdminEventActive()
+                local adminActive = SpecialEventUtil.IsEventActive("event-shadowadmin")
                 if isRiftExists("doodle-rift") and not fourXExists and not adminActive then
                     getgenv().questActive = true
                     getgenv().questEgg = "Doodle Egg"
