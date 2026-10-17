@@ -69,7 +69,7 @@ local selectedUpgrades = eventSettings.selectedUpgrades or {}
 if type(selectedUpgrades) == "string" then selectedUpgrades = {selectedUpgrades} end
 
 -- ======================================
--- REBIRTH SHOP (14 items — hw26rebirth-shop)
+-- REBIRTH SHOP (15 items — hw26rebirth-shop)
 -- ======================================
 local REBIRTH_SHOP_ITEMS = {
     "Lucky Lvl 7",
@@ -86,13 +86,14 @@ local REBIRTH_SHOP_ITEMS = {
     "Secret Rune Tier 3 x3",
     "Bubbles Rune Tier 3 x3",
     "XL Eerie Pumpkin",
+    "Eerie Pumpkin",
 }
 
 local selectedRebirthItems = eventSettings.selectedRebirthItems or {}
 if type(selectedRebirthItems) == "string" then selectedRebirthItems = {selectedRebirthItems} end
 
 -- ======================================
--- EVENT SHOP (12 items — spooky-shop)
+-- EVENT SHOP (13 items — spooky-shop)
 -- ======================================
 local EVENT_SHOP_ITEMS = {
     "Sinister Elixir Lvl 4",
@@ -106,6 +107,7 @@ local EVENT_SHOP_ITEMS = {
     "Green Fragment",
     "Blue Fragment",
     "Boost Crystal",
+    "XL Creepy Hydra",
     "Creepy Hydra",
 }
 
@@ -277,13 +279,13 @@ local function sendSummonWebhook(success)
     local color = 0
     
     if success then
-        content = "Summon Cloud Rift Success✅"
+        content = "Summon Cloud Rift Success"
         color = 0x00FF00
     else
         if discordID ~= "" then
-            content = "Failed Summoning Cloud Rift❌ <@" .. discordID .. ">"
+            content = "Failed Summoning Cloud Rift <@" .. discordID .. ">"
         else
-            content = "Failed Summoning Cloud Rift❌"
+            content = "Failed Summoning Cloud Rift"
         end
         color = 0xFF0000
     end
@@ -300,7 +302,7 @@ local function sendSummonWebhook(success)
                 content = content,
                 allowed_mentions = {parse = {"users"}},
                 embeds = {{
-                    title = success and "✅ Rift Summoned" or "❌ Summon Failed",
+                    title = success and "Rift Summoned" or "Summon Failed",
                     description = "**" .. player.Name .. "**",
                     color = color,
                     footer = {text = "Renoa Hub * " .. os.date("%Y-%m-%d %H:%M:%S")}
@@ -795,7 +797,7 @@ EventTab:Toggle({
                     end
                     
                     local higherPriorityActive = false
-                    if isRiftExists("corruptshadow-rift") or isRiftExists("overlord-rift") or isRiftExists("shadow-rift") or isRiftExists("doodle-rift") then
+                    if isRiftExists("corruptshadow-rift") or isRiftExists("shadow-rift") or isRiftExists("doodle-rift") then
                         higherPriorityActive = true
                     end
                     
@@ -888,7 +890,7 @@ EventTab:Toggle({
 EventTab:Section({ Title = "None" })
 
 EventTab:Paragraph({
-    Title = "⚠️ Warning",
+    Title = "Warning",
     Desc = "Make sure to LOCK your Rainshine if you don't want it to be used!",
 })
 
@@ -1127,7 +1129,7 @@ task.spawn(function()
                 end
                 
                 local higherPriorityActive = false
-                if isRiftExists("corruptshadow-rift") or isRiftExists("overlord-rift") or isRiftExists("shadow-rift") or isRiftExists("doodle-rift") then
+                if isRiftExists("corruptshadow-rift") or isRiftExists("shadow-rift") or isRiftExists("doodle-rift") then
                     higherPriorityActive = true
                 end
                 
