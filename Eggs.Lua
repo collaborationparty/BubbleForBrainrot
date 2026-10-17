@@ -169,10 +169,8 @@ local currentBountyPet = "Unknown"
 local currentBountyEgg = "Unknown"
 local currentBountyChance = "Unknown"
 
-local corruptShadowEnabled = eggSettings.autoCorruptShadow or false
-local overlordEnabled = eggSettings.autoOverlord or false
 local fourXEnabled = eggSettings.auto4x or false
-local shadowEnabled = eggSettings.autoShadow or false
+local adminShadowEnabled = eggSettings.autoAdminShadow or false
 local doodleEnabled = eggSettings.autoDoodle or false
 local autoHatchEnabled = eggSettings.autoHatch or false
 local spamEEnabled = eggSettings.autoSpamE or false
@@ -182,10 +180,8 @@ local bountyEnabled = eggSettings.autoBounty or false
 local riftEnabled = eggSettings.autoRiftBounty or false
 local xlBountyRunning = false
 
-local corruptShadowThread = nil
-local overlordThread = nil
 local fourXThread = nil
-local shadowThread = nil
+local adminShadowThread = nil
 local doodleThread = nil
 local autoHatchThread = nil
 local spamEThread = nil
@@ -198,7 +194,6 @@ local inventoryEggList = getInventoryEggs()
 local selectedInventoryEgg = eggSettings.inventoryEgg or inventoryEggList[1] or "Dominus Egg"
 
 local lastTeleportTime = 0
-
 local selectedXLEgg = ""
 
 local function getXLEggs()
@@ -458,7 +453,7 @@ local function toggleAutoHatchR()
                         if key2 then
                             local btn = key2:FindFirstChild("Button")
                             if btn then
-                                firesignal(btn.Activated)
+                                pcall(function() firesignal(btn.Activated) end)
                             end
                         end
                     end
@@ -484,105 +479,50 @@ local function find4xEgg()
 end
 
 -- ======================================
+-- ADMIN SHADOW EGG DETECTION
+-- ======================================
+local function findAdminShadowEgg()
+    local rendered = workspace:FindFirstChild("Rendered")
+    if rendered then
+        local generic = rendered:FindFirstChild("Generic")
+        if generic then
+            for _, obj in ipairs(generic:GetChildren()) do
+                if obj:IsA("Model") and obj.Name == "Admin Shadow Egg" then
+                    return obj
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function isAdminEventActive()
+    local pg = player:FindFirstChild("PlayerGui")
+    local sg = pg and pg:FindFirstChild("ScreenGui")
+    local hud = sg and sg:FindFirstChild("HUD")
+    local eventUI = hud and hud:FindFirstChild("Event")
+    
+    if eventUI then
+        local activeEvents = eventUI:FindFirstChild("ActiveEvents")
+        if activeEvents then
+            for _, child in ipairs(activeEvents:GetDescendants()) do
+                if child:IsA("TextLabel") and child.Text:lower():find("admin") then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- ======================================
 -- UI - SPECIAL EGGS
 -- ======================================
 EggsTab:Section({ Title = "------- Special Eggs -------" })
 
 EggsTab:Toggle({
-    Title = "Auto CorruptShadow Rift",
-    Desc = "Priority 1 — Hatching Dark Rift Egg",
-    Value = corruptShadowEnabled,
-    Callback = function(v)
-        corruptShadowEnabled = v
-        eggSettings.autoCorruptShadow = v
-        getgenv().HubSettings.eggs = eggSettings
-        saveHubSettings()
-        if v then
-            corruptShadowThread = task.spawn(function()
-                while corruptShadowEnabled do
-                    if isRiftExists("corruptshadow-rift") then
-                        getgenv().questActive = true
-                        getgenv().questEgg = "Dark Rift Egg"
-                        getgenv().ActivityStatus.current = "Doing CorruptShadow Rift right now"
-                        getgenv().ActivityStatus.trigger = true
-                        teleportToRiftSafely("corruptshadow-rift")
-                        lastTeleportTime = tick()
-                        task.wait(0.3)
-                        while corruptShadowEnabled and isRiftExists("corruptshadow-rift") do
-                            getgenv().questActive = true
-                            getgenv().questEgg = "Dark Rift Egg"
-                            if tick() - lastTeleportTime >= 3 then
-                                teleportToRiftSafely("corruptshadow-rift")
-                                lastTeleportTime = tick()
-                            end
-                            pcall(function() Remote:FireServer("HatchEgg", "Dark Rift Egg", HATCH_AMOUNT) end)
-                            task.wait(0.05)
-                        end
-                        getgenv().ActivityStatus.current = "Finished CorruptShadow Rift"
-                        getgenv().ActivityStatus.trigger = true
-                        getgenv().questActive = false
-                        getgenv().questEgg = nil
-                    end
-                    task.wait(1)
-                end
-            end)
-        else
-            if corruptShadowThread then task.cancel(corruptShadowThread) end
-            getgenv().questActive = false
-            getgenv().questEgg = nil
-        end
-    end,
-})
-
-EggsTab:Toggle({
-    Title = "Auto Overlord Rift",
-    Desc = "Priority 2 — Hatching Overlord Egg",
-    Value = overlordEnabled,
-    Callback = function(v)
-        overlordEnabled = v
-        eggSettings.autoOverlord = v
-        getgenv().HubSettings.eggs = eggSettings
-        saveHubSettings()
-        if v then
-            overlordThread = task.spawn(function()
-                while overlordEnabled do
-                    if isRiftExists("overlord-rift") and not isRiftExists("corruptshadow-rift") then
-                        getgenv().questActive = true
-                        getgenv().questEgg = "Overlord Egg"
-                        getgenv().ActivityStatus.current = "Doing Overlord Rift right now"
-                        getgenv().ActivityStatus.trigger = true
-                        teleportToRiftSafely("overlord-rift")
-                        lastTeleportTime = tick()
-                        task.wait(0.3)
-                        while overlordEnabled and isRiftExists("overlord-rift") do
-                            getgenv().questActive = true
-                            getgenv().questEgg = "Overlord Egg"
-                            if tick() - lastTeleportTime >= 3 then
-                                teleportToRiftSafely("overlord-rift")
-                                lastTeleportTime = tick()
-                            end
-                            pcall(function() Remote:FireServer("HatchEgg", "Overlord Egg", HATCH_AMOUNT) end)
-                            task.wait(0.05)
-                        end
-                        getgenv().ActivityStatus.current = "Finished Overlord Rift"
-                        getgenv().ActivityStatus.trigger = true
-                        getgenv().questActive = false
-                        getgenv().questEgg = nil
-                    end
-                    task.wait(1)
-                end
-            end)
-        else
-            if overlordThread then task.cancel(overlordThread) end
-            getgenv().questActive = false
-            getgenv().questEgg = nil
-        end
-    end,
-})
-
-EggsTab:Toggle({
     Title = "Auto 4x Egg",
-    Desc = "Priority 3 — Hatching 4x Luck Egg (auto-detects event name)",
+    Desc = "Priority 1 — Hatching 4x Luck Egg (auto-detects event name)",
     Value = fourXEnabled,
     Callback = function(v)
         fourXEnabled = v
@@ -594,43 +534,38 @@ EggsTab:Toggle({
                 local current4x = nil
                 local last4xTeleport = 0
                 while fourXEnabled do
-                    if not isRiftExists("corruptshadow-rift") and not isRiftExists("overlord-rift") then
-                        local egg = find4xEgg()
-                        if egg then
-                            current4x = egg
-                            getgenv().questActive = true
-                            getgenv().questEgg = egg.Name
-                            getgenv().ActivityStatus.current = "Doing 4x " .. egg.Name .. " right now"
-                            getgenv().ActivityStatus.trigger = true
+                    local egg = find4xEgg()
+                    if egg then
+                        current4x = egg
+                        getgenv().questActive = true
+                        getgenv().questEgg = egg.Name
+                        getgenv().ActivityStatus.current = "Doing 4x " .. egg.Name .. " right now"
+                        getgenv().ActivityStatus.trigger = true
 
-                            local now = tick()
-                            if now - last4xTeleport >= 3 then
-                                local root = getRoot()
-                                if root then
-                                    local ok, pivot = pcall(function() return egg:GetPivot() end)
-                                    if ok and pivot then
-                                        root.CFrame = CFrame.new(pivot.Position + Vector3.new(0, 5, 0))
-                                        root.Velocity = Vector3.zero
-                                        root.RotVelocity = Vector3.zero
-                                    end
+                        local now = tick()
+                        if now - last4xTeleport >= 3 then
+                            local root = getRoot()
+                            if root then
+                                local ok, pivot = pcall(function() return egg:GetPivot() end)
+                                if ok and pivot then
+                                    root.CFrame = CFrame.new(pivot.Position + Vector3.new(0, 5, 0))
+                                    root.Velocity = Vector3.zero
+                                    root.RotVelocity = Vector3.zero
                                 end
-                                last4xTeleport = now
                             end
-
-                            pcall(function() Remote:FireServer("HatchEgg", egg.Name, HATCH_AMOUNT) end)
-                            task.wait(0.05)
-                        else
-                            if current4x then
-                                getgenv().ActivityStatus.current = "Finished 4x Egg"
-                                getgenv().ActivityStatus.trigger = true
-                                getgenv().questActive = false
-                                getgenv().questEgg = nil
-                                current4x = nil
-                            end
-                            task.wait(1)
+                            last4xTeleport = now
                         end
+
+                        pcall(function() Remote:FireServer("HatchEgg", egg.Name, HATCH_AMOUNT) end)
+                        task.wait(0.05)
                     else
-                        current4x = nil
+                        if current4x then
+                            getgenv().ActivityStatus.current = "Finished 4x Egg"
+                            getgenv().ActivityStatus.trigger = true
+                            getgenv().questActive = false
+                            getgenv().questEgg = nil
+                            current4x = nil
+                        end
                         task.wait(1)
                     end
                 end
@@ -644,46 +579,92 @@ EggsTab:Toggle({
 })
 
 EggsTab:Toggle({
-    Title = "Auto Shadow Rift",
-    Desc = "Priority 4 — Hatching Dark Rift Egg",
-    Value = shadowEnabled,
+    Title = "Auto Admin Shadow Egg",
+    Desc = "Priority 2 — Hatching Admin Shadow Egg",
+    Value = adminShadowEnabled,
     Callback = function(v)
-        shadowEnabled = v
-        eggSettings.autoShadow = v
+        adminShadowEnabled = v
+        eggSettings.autoAdminShadow = v
         getgenv().HubSettings.eggs = eggSettings
         saveHubSettings()
         if v then
-            shadowThread = task.spawn(function()
-                while shadowEnabled do
-                    local fourXExists = find4xEgg() ~= nil
-                    if isRiftExists("shadow-rift") and not isRiftExists("corruptshadow-rift") and not isRiftExists("overlord-rift") and not fourXExists then
-                        getgenv().questActive = true
-                        getgenv().questEgg = "Dark Rift Egg"
-                        getgenv().ActivityStatus.current = "Doing Shadow Rift right now"
-                        getgenv().ActivityStatus.trigger = true
-                        teleportToRiftSafely("shadow-rift")
-                        lastTeleportTime = tick()
-                        task.wait(0.3)
-                        while shadowEnabled and isRiftExists("shadow-rift") do
+            adminShadowThread = task.spawn(function()
+                local currentAdmin = nil
+                local lastAdminTeleport = 0
+                local returnPos = nil
+                
+                while adminShadowEnabled do
+                    local active4x = find4xEgg()
+                    if not active4x then
+                        local egg = findAdminShadowEgg()
+                        
+                        -- If we are actively hatching it
+                        if egg then
+                            currentAdmin = egg
                             getgenv().questActive = true
-                            getgenv().questEgg = "Dark Rift Egg"
-                            if tick() - lastTeleportTime >= 3 then
-                                teleportToRiftSafely("shadow-rift")
-                                lastTeleportTime = tick()
+                            getgenv().questEgg = "Admin Shadow Egg"
+                            getgenv().ActivityStatus.current = "Doing Admin Shadow Egg right now"
+                            getgenv().ActivityStatus.trigger = true
+
+                            local now = tick()
+                            if now - lastAdminTeleport >= 3 then
+                                local root = getRoot()
+                                if root then
+                                    local ok, pivot = pcall(function() return egg:GetPivot() end)
+                                    if ok and pivot then
+                                        root.CFrame = CFrame.new(pivot.Position + Vector3.new(0, 5, 0))
+                                        root.Velocity = Vector3.zero
+                                        root.RotVelocity = Vector3.zero
+                                    end
+                                end
+                                lastAdminTeleport = now
                             end
-                            pcall(function() Remote:FireServer("HatchEgg", "Dark Rift Egg", HATCH_AMOUNT) end)
+
+                            pcall(function() Remote:FireServer("HatchEgg", "Admin Shadow Egg", HATCH_AMOUNT) end)
                             task.wait(0.05)
+                            
+                        -- If we don't see it, but the event is active
+                        elseif isAdminEventActive() then
+                            if not currentAdmin then
+                                getgenv().ActivityStatus.current = "Admin Event active — moving to Overworld"
+                                getgenv().ActivityStatus.trigger = true
+                                
+                                local root = getRoot()
+                                if root then
+                                    if not returnPos then returnPos = root.Position end
+                                    root.CFrame = CFrame.new(-1, 9, -22)
+                                end
+                                task.wait(2)
+                                pcall(function() Remote:FireServer("TeleportToRift", "admin-shadow-egg") end)
+                                task.wait(3)
+                            end
+                            
+                        else
+                            -- Not active and not hatching
+                            if currentAdmin then
+                                getgenv().ActivityStatus.current = "Finished Admin Shadow Egg"
+                                getgenv().ActivityStatus.trigger = true
+                                getgenv().questActive = false
+                                getgenv().questEgg = nil
+                                currentAdmin = nil
+                                
+                                -- Return to where we were
+                                if returnPos then
+                                    local root = getRoot()
+                                    if root then root.CFrame = CFrame.new(returnPos) end
+                                    returnPos = nil
+                                end
+                            end
+                            task.wait(1)
                         end
-                        getgenv().ActivityStatus.current = "Finished Shadow Rift"
-                        getgenv().ActivityStatus.trigger = true
-                        getgenv().questActive = false
-                        getgenv().questEgg = nil
+                    else
+                        currentAdmin = nil
+                        task.wait(1)
                     end
-                    task.wait(1)
                 end
             end)
         else
-            if shadowThread then task.cancel(shadowThread) end
+            if adminShadowThread then task.cancel(adminShadowThread) end
             getgenv().questActive = false
             getgenv().questEgg = nil
         end
@@ -692,7 +673,7 @@ EggsTab:Toggle({
 
 EggsTab:Toggle({
     Title = "Auto Doodle Rift",
-    Desc = "Priority 5 — Hatching Doodle Egg",
+    Desc = "Priority 3 — Hatching Doodle Egg",
     Value = doodleEnabled,
     Callback = function(v)
         doodleEnabled = v
@@ -703,7 +684,8 @@ EggsTab:Toggle({
             doodleThread = task.spawn(function()
                 while doodleEnabled do
                     local fourXExists = find4xEgg() ~= nil
-                    if isRiftExists("doodle-rift") and not isRiftExists("corruptshadow-rift") and not isRiftExists("overlord-rift") and not isRiftExists("shadow-rift") and not fourXExists then
+                    local adminActive = isAdminEventActive()
+                    if isRiftExists("doodle-rift") and not fourXExists and not adminActive then
                         getgenv().questActive = true
                         getgenv().questEgg = "Doodle Egg"
                         getgenv().ActivityStatus.current = "Doing Doodle Rift right now"
@@ -1211,84 +1193,69 @@ EggsTab:Toggle({
 task.spawn(function()
     task.wait(1.5)
     
-    if corruptShadowEnabled then
-        corruptShadowThread = task.spawn(function()
-            while corruptShadowEnabled do
-                if isRiftExists("corruptshadow-rift") then
-                    getgenv().questActive = true
-                    getgenv().questEgg = "Dark Rift Egg"
-                    getgenv().ActivityStatus.current = "Doing CorruptShadow Rift right now"
-                    getgenv().ActivityStatus.trigger = true
-                    teleportToRiftSafely("corruptshadow-rift")
-                    lastTeleportTime = tick()
-                    task.wait(0.3)
-                    while corruptShadowEnabled and isRiftExists("corruptshadow-rift") do
-                        getgenv().questActive = true
-                        getgenv().questEgg = "Dark Rift Egg"
-                        if tick() - lastTeleportTime >= 3 then
-                            teleportToRiftSafely("corruptshadow-rift")
-                            lastTeleportTime = tick()
-                        end
-                        pcall(function() Remote:FireServer("HatchEgg", "Dark Rift Egg", HATCH_AMOUNT) end)
-                        task.wait(0.05)
-                    end
-                    getgenv().ActivityStatus.current = "Finished CorruptShadow Rift"
-                    getgenv().ActivityStatus.trigger = true
-                    getgenv().questActive = false
-                    getgenv().questEgg = nil
-                end
-                task.wait(1)
-            end
-        end)
-    end
-    
-    if overlordEnabled then
-        overlordThread = task.spawn(function()
-            while overlordEnabled do
-                if isRiftExists("overlord-rift") and not isRiftExists("corruptshadow-rift") then
-                    getgenv().questActive = true
-                    getgenv().questEgg = "Overlord Egg"
-                    getgenv().ActivityStatus.current = "Doing Overlord Rift right now"
-                    getgenv().ActivityStatus.trigger = true
-                    teleportToRiftSafely("overlord-rift")
-                    lastTeleportTime = tick()
-                    task.wait(0.3)
-                    while overlordEnabled and isRiftExists("overlord-rift") do
-                        getgenv().questActive = true
-                        getgenv().questEgg = "Overlord Egg"
-                        if tick() - lastTeleportTime >= 3 then
-                            teleportToRiftSafely("overlord-rift")
-                            lastTeleportTime = tick()
-                        end
-                        pcall(function() Remote:FireServer("HatchEgg", "Overlord Egg", HATCH_AMOUNT) end)
-                        task.wait(0.05)
-                    end
-                    getgenv().ActivityStatus.current = "Finished Overlord Rift"
-                    getgenv().ActivityStatus.trigger = true
-                    getgenv().questActive = false
-                    getgenv().questEgg = nil
-                end
-                task.wait(1)
-            end
-        end)
-    end
-    
     if fourXEnabled then
         fourXThread = task.spawn(function()
             local current4x = nil
             local last4xTeleport = 0
             while fourXEnabled do
-                if not isRiftExists("corruptshadow-rift") and not isRiftExists("overlord-rift") then
-                    local egg = find4xEgg()
+                local egg = find4xEgg()
+                if egg then
+                    current4x = egg
+                    getgenv().questActive = true
+                    getgenv().questEgg = egg.Name
+                    getgenv().ActivityStatus.current = "Doing 4x " .. egg.Name .. " right now"
+                    getgenv().ActivityStatus.trigger = true
+
+                    local now = tick()
+                    if now - last4xTeleport >= 3 then
+                        local root = getRoot()
+                        if root then
+                            local ok, pivot = pcall(function() return egg:GetPivot() end)
+                            if ok and pivot then
+                                root.CFrame = CFrame.new(pivot.Position + Vector3.new(0, 5, 0))
+                                root.Velocity = Vector3.zero
+                                root.RotVelocity = Vector3.zero
+                            end
+                        end
+                        last4xTeleport = now
+                    end
+
+                    pcall(function() Remote:FireServer("HatchEgg", egg.Name, HATCH_AMOUNT) end)
+                    task.wait(0.05)
+                else
+                    if current4x then
+                        getgenv().ActivityStatus.current = "Finished 4x Egg"
+                        getgenv().ActivityStatus.trigger = true
+                        getgenv().questActive = false
+                        getgenv().questEgg = nil
+                        current4x = nil
+                    end
+                    task.wait(1)
+                end
+            end
+        end)
+    end
+    
+    if adminShadowEnabled then
+        adminShadowThread = task.spawn(function()
+            local currentAdmin = nil
+            local lastAdminTeleport = 0
+            local returnPos = nil
+            
+            while adminShadowEnabled do
+                local active4x = find4xEgg()
+                if not active4x then
+                    local egg = findAdminShadowEgg()
+                    
                     if egg then
-                        current4x = egg
+                        currentAdmin = egg
                         getgenv().questActive = true
-                        getgenv().questEgg = egg.Name
-                        getgenv().ActivityStatus.current = "Doing 4x " .. egg.Name .. " right now"
+                        getgenv().questEgg = "Admin Shadow Egg"
+                        getgenv().ActivityStatus.current = "Doing Admin Shadow Egg right now"
                         getgenv().ActivityStatus.trigger = true
 
                         local now = tick()
-                        if now - last4xTeleport >= 3 then
+                        if now - lastAdminTeleport >= 3 then
                             local root = getRoot()
                             if root then
                                 local ok, pivot = pcall(function() return egg:GetPivot() end)
@@ -1298,57 +1265,47 @@ task.spawn(function()
                                     root.RotVelocity = Vector3.zero
                                 end
                             end
-                            last4xTeleport = now
+                            lastAdminTeleport = now
                         end
 
-                        pcall(function() Remote:FireServer("HatchEgg", egg.Name, HATCH_AMOUNT) end)
+                        pcall(function() Remote:FireServer("HatchEgg", "Admin Shadow Egg", HATCH_AMOUNT) end)
                         task.wait(0.05)
+                        
+                    elseif isAdminEventActive() then
+                        if not currentAdmin then
+                            getgenv().ActivityStatus.current = "Admin Event active — moving to Overworld"
+                            getgenv().ActivityStatus.trigger = true
+                            
+                            local root = getRoot()
+                            if root then
+                                if not returnPos then returnPos = root.Position end
+                                root.CFrame = CFrame.new(-1, 9, -22)
+                            end
+                            task.wait(2)
+                            pcall(function() Remote:FireServer("TeleportToRift", "admin-shadow-egg") end)
+                            task.wait(3)
+                        end
+                        
                     else
-                        if current4x then
-                            getgenv().ActivityStatus.current = "Finished 4x Egg"
+                        if currentAdmin then
+                            getgenv().ActivityStatus.current = "Finished Admin Shadow Egg"
                             getgenv().ActivityStatus.trigger = true
                             getgenv().questActive = false
                             getgenv().questEgg = nil
-                            current4x = nil
+                            currentAdmin = nil
+                            
+                            if returnPos then
+                                local root = getRoot()
+                                if root then root.CFrame = CFrame.new(returnPos) end
+                                returnPos = nil
+                            end
                         end
                         task.wait(1)
                     end
                 else
-                    current4x = nil
+                    currentAdmin = nil
                     task.wait(1)
                 end
-            end
-        end)
-    end
-    
-    if shadowEnabled then
-        shadowThread = task.spawn(function()
-            while shadowEnabled do
-                local fourXExists = find4xEgg() ~= nil
-                if isRiftExists("shadow-rift") and not isRiftExists("corruptshadow-rift") and not isRiftExists("overlord-rift") and not fourXExists then
-                    getgenv().questActive = true
-                    getgenv().questEgg = "Dark Rift Egg"
-                    getgenv().ActivityStatus.current = "Doing Shadow Rift right now"
-                    getgenv().ActivityStatus.trigger = true
-                    teleportToRiftSafely("shadow-rift")
-                    lastTeleportTime = tick()
-                    task.wait(0.3)
-                    while shadowEnabled and isRiftExists("shadow-rift") do
-                        getgenv().questActive = true
-                        getgenv().questEgg = "Dark Rift Egg"
-                        if tick() - lastTeleportTime >= 3 then
-                            teleportToRiftSafely("shadow-rift")
-                            lastTeleportTime = tick()
-                        end
-                        pcall(function() Remote:FireServer("HatchEgg", "Dark Rift Egg", HATCH_AMOUNT) end)
-                        task.wait(0.05)
-                    end
-                    getgenv().ActivityStatus.current = "Finished Shadow Rift"
-                    getgenv().ActivityStatus.trigger = true
-                    getgenv().questActive = false
-                    getgenv().questEgg = nil
-                end
-                task.wait(1)
             end
         end)
     end
@@ -1357,7 +1314,8 @@ task.spawn(function()
         doodleThread = task.spawn(function()
             while doodleEnabled do
                 local fourXExists = find4xEgg() ~= nil
-                if isRiftExists("doodle-rift") and not isRiftExists("corruptshadow-rift") and not isRiftExists("overlord-rift") and not isRiftExists("shadow-rift") and not fourXExists then
+                local adminActive = isAdminEventActive()
+                if isRiftExists("doodle-rift") and not fourXExists and not adminActive then
                     getgenv().questActive = true
                     getgenv().questEgg = "Doodle Egg"
                     getgenv().ActivityStatus.current = "Doing Doodle Rift right now"
