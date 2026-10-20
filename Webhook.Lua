@@ -311,6 +311,7 @@ local Pets = require(ReplicatedStorage.Shared.Data.Pets)
 local LocalData = require(ReplicatedStorage.Client.Framework.Services.LocalData)
 local Remote = require(ReplicatedStorage.Shared.Framework.Network.Remote)
 local SecretBountyUtil = require(ReplicatedStorage.Shared.Utils.Stats.SecretBountyUtil)
+local BuffsData = require(ReplicatedStorage.Shared.Data.Buffs)
 
 -- ======================================
 -- FORMAT
@@ -393,56 +394,77 @@ local function getComboEnchantImage(id1, id2)
 end
 
 -- ======================================
--- BUFF TIMER
+-- ADVANCED BUFF SCANNER (NEW)
 -- ======================================
-local function getBuffTime(buffName)
-    local playerGui = player:FindFirstChild("PlayerGui")
-    if playerGui then
-        local screenGui = playerGui:FindFirstChild("ScreenGui")
-        if screenGui then
-            local buffs = screenGui:FindFirstChild("Buffs")
-            if buffs then
-                for _, buff in ipairs(buffs:GetChildren()) do
-                    if buff.Name == buffName then
-                        local button = buff:FindFirstChild("Button")
-                        if button then
-                            local label = button:FindFirstChild("Label")
-                            if label and label.Text ~= "" then
-                                local text = label.Text
-                                if buffName == "Lucky" then
-                                    if text:find("^%d+:%d+$") then
-                                    else
-                                        return text
-                                    end
-                                else
-                                    return text
-                                end
-                            end
+local function getBuffTimesForEmbed()
+    local BLACKLIST = {
+        ["GoldRush"] = true,
+        ["FragmentBuffs"] = true,
+        ["MilestoneBuff"] = true,
+        ["Friendship"] = true,
+        ["Shiny"] = true,
+        ["Coins"] = true,
+    }
+
+    local pg = player:FindFirstChild("PlayerGui")
+    local sg = pg and pg:FindFirstChild("ScreenGui")
+    local buffs = sg and sg:FindFirstChild("Buffs")
+    local clip = buffs and buffs:FindFirstChild("Clip")
+    local items = clip and clip:FindFirstChild("Items")
+    
+    if not items then return "No active buffs" end
+
+    local lines = {}
+    
+    for _, frame in ipairs(items:GetChildren()) do
+        if frame:IsA("Frame") then
+            local internalName = frame.Name
+            
+            if not BLACKLIST[internalName] then
+                local btn = frame:FindFirstChild("Button")
+                local lblText = ""
+                if btn then
+                    local lbl = btn:FindFirstChild("Label")
+                    if lbl and lbl:IsA("TextLabel") then
+                        lblText = lbl.Text
+                    end
+                end
+                
+                -- Skip 5-min Lucky
+                local isShortLucky = (internalName == "Lucky" and lblText:find(":%d%d$") ~= nil)
+                
+                if not isShortLucky then
+                    local displayName = internalName
+                    local levelText = ""
+                    local timerText = lblText
+                    
+                    -- Get proper name from data
+                    local info = BuffsData[internalName]
+                    if info and info.DisplayName then
+                        displayName = info.DisplayName
+                    elseif internalName == "Bubbles" then
+                        displayName = "Bubble Fragment"
+                    end
+                    
+                    -- Get Level
+                    if btn then
+                        local lvl = btn:FindFirstChild("Level")
+                        if lvl and lvl:IsA("TextLabel") and lvl.Text ~= "" then 
+                            levelText = " (Lvl " .. lvl.Text .. ")"
+                        end
+                        
+                        local amt = btn:FindFirstChild("Amount")
+                        if amt and amt:IsA("TextLabel") and timerText == "" then
+                            timerText = amt.Text
                         end
                     end
+                    
+                    table.insert(lines, displayName .. levelText .. ": " .. timerText)
                 end
             end
         end
     end
-    return "N/A"
-end
 
-local function getBuffTimesForEmbed()
-    local buffs = {
-        {"Secret Elixir", "Secret Elixir"},
-        {"Ultra Infinity Elixir", "Ultra Infinity Elixir"},
-        {"Infinity Elixir", "Infinity Elixir"},
-        {"Lucky Potion", "Lucky"},
-        {"Speed Potion", "Speed"},
-        {"Mythic Potion", "Mythic"},
-    }
-    local lines = {}
-    for _, buff in ipairs(buffs) do
-        local time = getBuffTime(buff[2])
-        if time and time ~= "N/A" and time ~= "0s" then
-            table.insert(lines, buff[1] .. ": " .. time)
-        end
-    end
     if #lines == 0 then return "No active buffs" end
     return table.concat(lines, "\n")
 end
