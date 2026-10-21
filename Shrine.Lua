@@ -64,37 +64,6 @@ local permRerollNotified = false
 -- ======================================
 -- FUNCTIONS
 -- ======================================
-local function getBuffTime(buffName)
-    local playerGui = player:FindFirstChild("PlayerGui")
-    local screenGui = playerGui and playerGui:FindFirstChild("ScreenGui")
-    local buffs = screenGui and screenGui:FindFirstChild("Buffs")
-    local clip = buffs and buffs:FindFirstChild("Clip")
-    local items = clip and clip:FindFirstChild("Items")
-    
-    if items then
-        for _, frame in ipairs(items:GetChildren()) do
-            if frame.Name == buffName then
-                local btn = frame:FindFirstChild("Button")
-                if btn then
-                    local lbl = btn:FindFirstChild("Label")
-                    if lbl and lbl:IsA("TextLabel") and lbl.Text ~= "" then 
-                        return lbl.Text 
-                    end
-                end
-            end
-        end
-    end
-    return nil
-end
-
-local function isBuffExpired(buffName)
-    local time = getBuffTime(buffName)
-    if not time then return true end
-    if time == "0:00:00" or time == "0s" then return true end
-    return false
-end
-
--- Perm Shrine functions
 local function getPermShrineData()
     local data = LocalData:Get()
     if data and data.PermanentShrine then
@@ -234,7 +203,7 @@ ShrineTab:Input({
 
 ShrineTab:Toggle({
     Title = "Auto Bubble",
-    Desc = "Donates to Bubble Shrine every 60 seconds when buff expires",
+    Desc = "Donates to Bubble Shrine every 12 hours",
     Value = shrineSettings.autoBubble or false,
     Callback = function(v)
         bubbleEnabled = v
@@ -242,20 +211,14 @@ ShrineTab:Toggle({
         getgenv().HubSettings.shrine = shrineSettings
         saveHubSettings()
         if v then
-            -- Only donate if it's actually expired on start
-            if isBuffExpired("ShrineBlessing") then
-                getgenv().ActivityStatus.current = "Bubble Shrine Activated"
-                getgenv().ActivityStatus.trigger = true
-                bubble()
-            end
-            
+            getgenv().ActivityStatus.current = "Bubble Shrine Activated"
+            getgenv().ActivityStatus.trigger = true
+            bubble()
             bubbleThread = task.spawn(function()
                 while bubbleEnabled do
-                    task.wait(60)
-                    if isBuffExpired("ShrineBlessing") then
+                    task.wait(43200) -- 12 hours
+                    if bubbleEnabled then
                         bubble()
-                        getgenv().ActivityStatus.current = "Bubble Shrine Activated"
-                        getgenv().ActivityStatus.trigger = true
                     end
                 end
             end)
@@ -287,7 +250,7 @@ ShrineTab:Input({
 
 ShrineTab:Toggle({
     Title = "Auto Dreamer",
-    Desc = "Donates to Dreamer Shrine every 60 seconds when buff expires",
+    Desc = "Donates to Dreamer Shrine every 12 hours",
     Value = shrineSettings.autoDreamer or false,
     Callback = function(v)
         dreamerEnabled = v
@@ -295,19 +258,14 @@ ShrineTab:Toggle({
         getgenv().HubSettings.shrine = shrineSettings
         saveHubSettings()
         if v then
-            if isBuffExpired("DreamerBlessing") then
-                getgenv().ActivityStatus.current = "Dreamer Shrine Activated"
-                getgenv().ActivityStatus.trigger = true
-                dreamer()
-            end
-            
+            getgenv().ActivityStatus.current = "Dreamer Shrine Activated"
+            getgenv().ActivityStatus.trigger = true
+            dreamer()
             dreamerThread = task.spawn(function()
                 while dreamerEnabled do
-                    task.wait(60)
-                    if isBuffExpired("DreamerBlessing") then
+                    task.wait(43200) -- 12 hours
+                    if dreamerEnabled then
                         dreamer()
-                        getgenv().ActivityStatus.current = "Dreamer Shrine Activated"
-                        getgenv().ActivityStatus.trigger = true
                     end
                 end
             end)
@@ -504,18 +462,14 @@ task.spawn(function()
     -- Auto Bubble
     if shrineSettings.autoBubble then
         bubbleEnabled = true
-        if isBuffExpired("ShrineBlessing") then
-            getgenv().ActivityStatus.current = "Bubble Shrine Activated"
-            getgenv().ActivityStatus.trigger = true
-            bubble()
-        end
+        getgenv().ActivityStatus.current = "Bubble Shrine Activated"
+        getgenv().ActivityStatus.trigger = true
+        bubble()
         bubbleThread = task.spawn(function()
             while bubbleEnabled do
-                task.wait(60)
-                if isBuffExpired("ShrineBlessing") then
+                task.wait(43200) -- 12 hours
+                if bubbleEnabled then
                     bubble()
-                    getgenv().ActivityStatus.current = "Bubble Shrine Activated"
-                    getgenv().ActivityStatus.trigger = true
                 end
             end
         end)
@@ -524,18 +478,14 @@ task.spawn(function()
     -- Auto Dreamer
     if shrineSettings.autoDreamer then
         dreamerEnabled = true
-        if isBuffExpired("DreamerBlessing") then
-            getgenv().ActivityStatus.current = "Dreamer Shrine Activated"
-            getgenv().ActivityStatus.trigger = true
-            dreamer()
-        end
+        getgenv().ActivityStatus.current = "Dreamer Shrine Activated"
+        getgenv().ActivityStatus.trigger = true
+        dreamer()
         dreamerThread = task.spawn(function()
             while dreamerEnabled do
-                task.wait(60)
-                if isBuffExpired("DreamerBlessing") then
+                task.wait(43200) -- 12 hours
+                if dreamerEnabled then
                     dreamer()
-                    getgenv().ActivityStatus.current = "Dreamer Shrine Activated"
-                    getgenv().ActivityStatus.trigger = true
                 end
             end
         end)
