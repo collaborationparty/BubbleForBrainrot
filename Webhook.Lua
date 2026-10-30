@@ -230,7 +230,7 @@ local function getThreshold()
 end
 
 -- ======================================
--- ENCHANT DISPLAY NAMES
+-- ENCHANT DISPLAY NAMES & IMAGES
 -- ======================================
 local ENCHANT_NAMES = {
     ["super-burst"] = "Burst Blessing",
@@ -249,7 +249,51 @@ local ENCHANT_NAMES = {
     ["super-mythic-plus"] = "Mythic Blessing+",
     ["super-duplication"] = "Duplication",
     ["super-duplication-plus"] = "Duplication+",
+    ["super-xl"] = "XL Luck",
+    ["super-xl-plus"] = "XL Luck+",
+    ["super-void"] = "Void Luck",
+    ["super-void-plus"] = "Void Luck+",
+    ["super-bubble-speed"] = "Faster Bubbling",
+    ["super-bubble-speed-plus"] = "Faster Bubbling+",
 }
+
+local SL_IMAGES = {
+    ["super-luck-plus"] = "https://bgsi.io/assets/images/SL/xl-luck-plus-1080.webp?v=20261019-sl11-final",
+    ["super-luck"] = "https://bgsi.io/assets/images/SL/xl-luck-1080.webp?v=20261019-sl11-final",
+    ["super-void"] = "https://bgsi.io/assets/images/SL/void-luck-1080.webp?v=20261019-sl11-final",
+    ["super-void-plus"] = "https://bgsi.io/assets/images/SL/void-luck-plus-1080.webp?v=20261019-sl11-final",
+    ["super-bubble-speed-plus"] = "https://bgsi.io/assets/images/SL/faster-bubbling-plus-1080.webp?v=20261019-sl11-final",
+    ["super-bubble-speed"] = "https://bgsi.io/assets/images/SL/faster-bubbling-1080.webp?v=20261019-sl11-final",
+    ["super-duplication-plus"] = "https://bgsi.io/assets/images/SL/duplication-plus-1080.webp?v=20261019-sl11-final",
+    ["super-duplication"] = "https://bgsi.io/assets/images/SL/duplication-1080.webp?v=20261019-sl11-final",
+    ["super-mythic-plus"] = "https://bgsi.io/assets/images/SL/mythic-blessing-plus-1080.webp?v=20261019-sl11-final",
+    ["super-mythic"] = "https://bgsi.io/assets/images/SL/mythic-blessing-1080.webp?v=20261019-sl11-final",
+    ["super-bubble-plus"] = "https://bgsi.io/assets/images/SL/bubble-machine-plus-1080.webp?v=20261019-sl11-final",
+    ["super-bubble"] = "https://bgsi.io/assets/images/SL/bubble-machine-1080.webp?v=20261019-sl11-final",
+    ["super-shiny-plus"] = "https://bgsi.io/assets/images/SL/shiny-blessing-plus-1080.webp?v=20261019-sl11-final",
+    ["super-shiny"] = "https://bgsi.io/assets/images/SL/shiny-blessing-1080.webp?v=20261019-sl11-final",
+    ["super-burst-plus"] = "https://bgsi.io/assets/images/SL/burst-blessing-plus-1080.webp?v=20261019-sl11-final",
+    ["super-burst"] = "https://bgsi.io/assets/images/SL/burst-blessing-1080.webp?v=20261019-sl11-final",
+    ["super-infinity-plus"] = "https://bgsi.io/assets/images/SL/infinity-blessing-plus-1080.webp?v=20261019-sl11-final",
+    ["super-infinity"] = "https://bgsi.io/assets/images/SL/infinity-blessing-1080.webp?v=20261019-sl11-final",
+    ["super-speed-plus"] = "https://bgsi.io/assets/images/SL/hatch-blessing-plus-1080.webp?v=20261019-sl11-final",
+    ["super-speed"] = "https://bgsi.io/assets/images/SL/hatch-blessing-1080.webp?v=20261019-sl11-final",
+    ["luck-boost"] = "https://bgsi.io/assets/images/SL/luck-boost-1080.webp?v=20261019-sl11-final",
+    ["luck-boost-plus"] = "https://bgsi.io/assets/images/SL/luck-boost-plus-1080.webp?v=20261019-sl11-final",
+    ["super-xl"] = "https://bgsi.io/assets/images/SL/xl-luck-1080.webp?v=20261019-sl11-final",
+    ["super-xl-plus"] = "https://bgsi.io/assets/images/SL/xl-luck-plus-1080.webp?v=20261019-sl11-final",
+}
+
+local function getEnchantImage(enchantId)
+    if not enchantId or enchantId == "" then return nil end
+    return SL_IMAGES[enchantId]
+end
+
+local function getComboEnchantImage(id1, id2)
+    -- Option 1: Use the first enchant's image as requested
+    if not id1 then return nil end
+    return getEnchantImage(id1)
+end
 
 -- ======================================
 -- COLOR SCHEME
@@ -381,20 +425,7 @@ local function getImage(petName, ex)
 end
 
 -- ======================================
--- ENCHANT IMAGE (demand.gg)
--- ======================================
-local function getEnchantImage(enchantId)
-    if not enchantId or enchantId == "" then return nil end
-    return "https://cdn.demand.gg/i/bgsi/enchants/" .. enchantId .. "/256.webp"
-end
-
-local function getComboEnchantImage(id1, id2)
-    if not id1 or not id2 then return nil end
-    return "https://cdn.demand.gg/i/bgsi/enchants/combo-" .. id1 .. id2 .. "/256.webp"
-end
-
--- ======================================
--- ADVANCED BUFF SCANNER (NEW)
+-- ADVANCED BUFF SCANNER
 -- ======================================
 local function getBuffTimesForEmbed()
     local BLACKLIST = {
@@ -1324,7 +1355,7 @@ WebhookTab:Section({ Title = "Status" })
 
 WebhookTab:Paragraph({
     Title = "Active",
-    Desc = "Tracking: Secret, Celestial, Infinity, Void, Super Legendary, XL\nAlerts: 4x Egg, Rare Inventory Eggs (VOID EGG??, Shadow Realm Egg), Inventory Full\nBounty: Sends today's bounty on join + whenever it changes (checks every 60s)\nOnline ping: Every 30 minutes\nStuck detection: Every 2 min, rejoin after 6 min\nFragments + Stats + Buff Times\nOdds Threshold: Private only, XL & Super exempt\nInfinity/Void: ALWAYS notify\nPet images: demand.gg\nEnchant images: demand.gg",
+    Desc = "Tracking: Secret, Celestial, Infinity, Void, Super Legendary, XL\nAlerts: 4x Egg, Rare Inventory Eggs (VOID EGG??, Shadow Realm Egg), Inventory Full\nBounty: Sends today's bounty on join + whenever it changes (checks every 60s)\nOnline ping: Every 30 minutes\nStuck detection: Every 2 min, rejoin after 6 min\nFragments + Stats + Buff Times\nOdds Threshold: Private only, XL & Super exempt\nInfinity/Void: ALWAYS notify\nPet images: demand.gg\nEnchant images: bgsi.io",
 })
 
 WebhookTab:Paragraph({
