@@ -28,7 +28,7 @@ if not settings.pets then settings.pets = {} end
 local petSettings = settings.pets
 
 -- ======================================
--- DELETE FUNCTION (BULK)
+-- HELPERS
 -- ======================================
 local function deletePet(petId, amount)
     pcall(function()
@@ -36,16 +36,31 @@ local function deletePet(petId, amount)
     end)
 end
 
--- ======================================
--- TRUE SECRET DETECTION
--- ======================================
-local function isTrueSecret(info)
+-- Check if pet is from the Admin event
+local function isAdminPet(pet, info)
     if not info then return false end
+    if info.Tag and (info.Tag:find("Admin") or info.Tag:find("Abuse")) then return true end
+    if info.Egg and info.Egg == "Admin Shadow Egg" then return true end
+    return false
+end
+
+-- Check if pet is a TRUE normal secret
+local function isTrueNormalSecret(pet, info)
+    if not info then return false end
+    if isAdminPet(pet, info) then return false end
     if info.Rarity ~= "Secret" then return false end
-    if info.Celestial then return false end
-    if info.Infinity then return false end
-    if info.Void then return false end
+    if info.Celestial or info.Infinity or info.Void then return false end
     return true
+end
+
+-- Check if it's protected (Season/Exclusive)
+local function isProtectedLegendary(info)
+    if not info or not info.Rarity or not info.Rarity:find("Legendary") then return false end
+    local tag = info.Tag or ""
+    if tag:lower():find("season") or tag:lower():find("exclusive") then
+        return true
+    end
+    return false
 end
 
 -- ======================================
@@ -61,6 +76,8 @@ local TARGET_EGGS = {
 
 local function isT3Legendary(pet, info)
     if not info or not info.Egg then return false end
+    if isAdminPet(pet, info) then return false end
+    if isProtectedLegendary(info) then return false end
     if not table.find(TARGET_EGGS, info.Egg) then return false end
     if pet.Super then return false end
     if pet.Locked then return false end
@@ -71,18 +88,22 @@ local function isT3Legendary(pet, info)
 end
 
 -- ======================================
--- AUTO DELETE BY RARITY
+-- AUTO DELETE BY RARITY (INCLUDING AA JUNK)
 -- ======================================
 local autoDeleteRarityEnabled = petSettings.autoDeleteRarity or false
 local autoDeleteRarityThread = nil
 
-local DELETE_RARITIES = {"Common", "Unique", "Rare", "Epic", "Legendary"}
+local DELETE_RARITIES = {"Common", "Uncommon", "Unique", "Rare", "Epic", "Legendary"}
 
 local function shouldDeleteByRarity(pet, info)
     if not info or not info.Rarity then return false end
     if pet.Super then return false end
     if pet.Locked then return false end
     
+    -- DO NOT DELETE IF PROTECTED
+    if isProtectedLegendary(info) then return false end
+    
+    -- Delete if it matches the target list
     for _, rarity in ipairs(DELETE_RARITIES) do
         if info.Rarity == rarity then
             return true
@@ -93,7 +114,7 @@ local function shouldDeleteByRarity(pet, info)
 end
 
 -- ======================================
--- REBIRTH MACHINE (NORMAL)
+-- REBIRTH MACHINE (NORMAL - NO AA, NO LEGENDARY)
 -- ======================================
 local fuserActive = false
 local loopThread = nil
@@ -137,12 +158,16 @@ local function fusionLoop()
         local matching = {}
         for _, pet in pairs(data.Pets) do
             if not pet.Locked then
-                if isCorrectVariant(pet) then
-                    local name = string.lower(pet.Name)
-                    for _, t in ipairs(targetNames) do
-                        if name:find(t) then
-                            table.insert(matching, pet)
-                            break
+                local info = Pets[pet.Name]
+                -- Strictly exclude Admin pets and Legendary pets
+                if isTrueNormalSecret(pet, info) then
+                    if isCorrectVariant(pet) then
+                        local name = string.lower(pet.Name)
+                        for _, t in ipairs(targetNames) do
+                            if name:find(t) then
+                                table.insert(matching, pet)
+                                break
+                            end
                         end
                     end
                 end
@@ -174,7 +199,7 @@ PetTab:Section({ Title = "Auto Delete Pet" })
 
 PetTab:Paragraph({
     Title = "⚠️ Note",
-    Desc = "First toggle only deletes T3 Legendary from perm egg THAT CAN be Super Legendary (Safe Tested many times 🔥)",
+    Desc = "Deletes T3 Legendary from perm eggs. Safe.",
 })
 
 PetTab:Toggle({
@@ -216,7 +241,7 @@ PetTab:Toggle({
 
 PetTab:Toggle({
     Title = "Auto Delete Rarity",
-    Desc = "Deletes Common, Unique, Rare, Epic, Legendary pets",
+    Desc = "Deletes Common, Uncommon, Unique, Rare, Epic, Legendary (Ignores Season/Exclusive)",
     Value = autoDeleteRarityEnabled,
     Callback = function(v)
         autoDeleteRarityEnabled = v
@@ -276,7 +301,7 @@ PetTab:Dropdown({
 
 PetTab:Toggle({
     Title = "Auto Rebirth Machine",
-    Desc = "Uses the Rebirth Machine with specified pet names",
+    Desc = "Uses the Rebirth Machine with specified pet names (Excludes AA & Legs)",
     Value = false,
     Callback = function(v)
         fuserActive = v
@@ -299,7 +324,7 @@ PetTab:Section({ Title = "Rebirth Machine (All Unlocked)" })
 
 PetTab:Paragraph({
     Title = "⚠️ Warning",
-    Desc = "Make sure to Lock all Valuable Pets before using this. Only uses TRUE Secret pets (NOT Celestial, Infinity, Void). XL pets are EXCLUDED.",
+    Desc = "Only uses TRUE Normal Secret pets. AA and Legendary EXCLUDED.",
 })
 
 local trackerParagraph = PetTab:Paragraph({
@@ -312,7 +337,7 @@ local fuseAllThread = nil
 
 PetTab:Toggle({
     Title = "Auto Rebirth Machine (All Unlocked Pets)",
-    Desc = "Uses all unlocked True Secret pets (grouped by variant)",
+    Desc = "Uses all unlocked True Normal Secret pets (grouped by variant)",
     Value = false,
     Callback = function(v)
         fuseAllActive = v
@@ -338,7 +363,8 @@ PetTab:Toggle({
                     for _, pet in pairs(data.Pets) do
                         if not pet.Locked and not pet.XL then
                             local info = Pets[pet.Name]
-                            if isTrueSecret(info) then
+                            -- Only pure normal secrets
+                            if isTrueNormalSecret(pet, info) then
                                 if pet.Shiny and pet.Mythic then
                                     table.insert(groups.ShinyMythic, pet)
                                 elseif pet.Shiny then
@@ -422,13 +448,13 @@ PetTab:Toggle({
 })
 
 -- ======================================
--- UI - ADMIN REBIRTH MACHINE (AT BOTTOM)
+-- UI - ADMIN REBIRTH MACHINE (STRICT AA SECRETS ONLY)
 -- ======================================
 PetTab:Section({ Title = "Admin Rebirth Machine" })
 
 PetTab:Paragraph({
     Title = "⚠️ Requirement",
-    Desc = "Requires 4 Admin Abuse Secrets (e.g., The Darkenedlord) of the SAME variant. Make sure your valuable Admin pets are LOCKED!",
+    Desc = "Requires 4 Admin Abuse Secrets. Uses ONLY AA Secret Pets.",
 })
 
 local adminTrackerParagraph = PetTab:Paragraph({
@@ -438,11 +464,6 @@ local adminTrackerParagraph = PetTab:Paragraph({
 
 local adminFuserActive = false
 local adminFuserThread = nil
-
-local function isAdminPet(pet, info)
-    if not info then return false end
-    return info.Tag == "Shadow Admin Abuse" or info.Egg == "Admin Shadow Egg"
-end
 
 PetTab:Toggle({
     Title = "Auto Admin Rebirth Machine",
@@ -474,7 +495,9 @@ PetTab:Toggle({
                     for _, pet in pairs(data.Pets) do
                         if not pet.Locked then
                             local info = Pets[pet.Name]
-                            if isAdminPet(pet, info) then
+                            
+                            -- Ensure it's AA AND specifically a true Secret
+                            if isAdminPet(pet, info) and info.Rarity == "Secret" then
                                 if pet.Shiny and pet.Mythic then table.insert(groups.ShinyMythic, pet)
                                 elseif pet.Shiny then table.insert(groups.Shiny, pet)
                                 elseif pet.Mythic then table.insert(groups.Mythic, pet)
@@ -606,7 +629,7 @@ task.spawn(function()
                     for _, pet in pairs(data.Pets) do
                         if not pet.Locked then
                             local info = Pets[pet.Name]
-                            if isAdminPet(pet, info) then
+                            if isAdminPet(pet, info) and info.Rarity == "Secret" then
                                 if pet.Shiny and pet.Mythic then table.insert(groups.ShinyMythic, pet)
                                 elseif pet.Shiny then table.insert(groups.Shiny, pet)
                                 elseif pet.Mythic then table.insert(groups.Mythic, pet)
