@@ -75,6 +75,25 @@ local eventShopThread = nil
 local halloweenRebirthAuto = false
 local halloweenRebirthThread = nil
 
+-- Dark Shop
+local darkShopBuying = false
+local darkShopThread = nil
+local currentDarkShopItems = {
+    "Super Legendary Elixir",
+    "Super XL Elixir",
+    "Super Secret Elixir",
+    "Super Infinity Elixir",
+    "Boost Crystal x20"
+}
+local selectedDarkShopItems = eventSettings.selectedDarkShopItems or {}
+if type(selectedDarkShopItems) == "string" then selectedDarkShopItems = {selectedDarkShopItems} end
+
+-- Event Shrine
+local shrineRunning = false
+local shrineThread = nil
+local TARGET_BUFF_OPTIONS = {"Luck", "Shiny", "Mythic", "Secret", "Infinity"}
+local targetShrineBuff = eventSettings.targetShrineBuff or "Luck"
+
 -- ======================================
 -- DYNAMIC SHOP SCANNER
 -- ======================================
@@ -386,6 +405,61 @@ EventTab:Toggle({
 })
 
 -- ======================================
+-- UI - DARK SHOP
+-- ======================================
+EventTab:Section({ Title = "Dark Shop" })
+
+EventTab:Dropdown({
+    Title = "Select Items (Multi-Select)",
+    Values = currentDarkShopItems,
+    Value = selectedDarkShopItems,
+    Multi = true,
+    Callback = function(v)
+        if type(v) == "table" then
+            selectedDarkShopItems = v
+        else
+            selectedDarkShopItems = {v}
+        end
+        eventSettings.selectedDarkShopItems = selectedDarkShopItems
+        getgenv().HubSettings.event = eventSettings
+        saveHubSettings()
+    end,
+})
+
+EventTab:Toggle({
+    Title = "Auto Buy Dark Shop",
+    Desc = "Buys the selected Dark Shop items continuously",
+    Value = eventSettings.autoBuyDarkShop or false,
+    Callback = function(v)
+        darkShopBuying = v
+        eventSettings.autoBuyDarkShop = v
+        getgenv().HubSettings.event = eventSettings
+        saveHubSettings()
+        if v then
+            darkShopThread = task.spawn(function()
+                while darkShopBuying do
+                    for _, item in ipairs(selectedDarkShopItems) do
+                        if not darkShopBuying then break end
+                        local value = type(item) == "table" and item[1] or item
+                        local slotIndex = nil
+                        for i, name in ipairs(currentDarkShopItems) do
+                            if name == value then slotIndex = i; break end
+                        end
+                        if slotIndex then
+                            pcall(function() RE:FireServer("BuyShopItem", "darkmarket-shop", slotIndex, true) end)
+                            task.wait(0.5)
+                        end
+                    end
+                    task.wait(5)
+                end
+            end)
+        else
+            if darkShopThread then task.cancel(darkShopThread) end
+        end
+    end,
+})
+
+-- ======================================
 -- UI - EVENT CHEST
 -- ======================================
 EventTab:Section({ Title = "Event Chest" })
@@ -602,6 +676,92 @@ EventTab:Toggle({
             end)
         else
             if eventShopThread then task.cancel(eventShopThread) end
+        end
+    end,
+})
+
+-- ======================================
+-- UI - EVENT SHRINE (NEW)
+-- ======================================
+EventTab:Section({ Title = "Event Shrine" })
+
+EventTab:Paragraph({
+    Title = "⚠️ Important",
+    Desc = "Donate and claim buff manually after that turn on this and u dont have to worry about it anymore",
+})
+
+EventTab:Dropdown({
+    Title = "Target Buff",
+    Values = TARGET_BUFF_OPTIONS,
+    Value = targetShrineBuff,
+    Callback = function(v)
+        targetShrineBuff = v
+        eventSettings.targetShrineBuff = v
+        getgenv().HubSettings.event = eventSettings
+        saveHubSettings()
+    end,
+})
+
+EventTab:Toggle({
+    Title = "Auto Event Shrine Reroll",
+    Desc = "Rerolls purely via remotes in the background",
+    Value = eventSettings.autoShrineReroll or false,
+    Callback = function(v)
+        shrineRunning = v
+        eventSettings.autoShrineReroll = v
+        getgenv().HubSettings.event = eventSettings
+        saveHubSettings()
+        if v then
+            getgenv().ActivityStatus.current = "Auto rerolling for " .. targetShrineBuff .. " -Event Shrine"
+            getgenv().ActivityStatus.trigger = true
+
+            shrineThread = task.spawn(function()
+                local foundTarget = false
+                
+                while shrineRunning do
+                    task.wait(1)
+                    local data = LocalData:Get()
+                    local shrine = data and data.HalloweenShrine
+                    
+                    if shrine and shrine.Buff then
+                        local currentBuff = tostring(shrine.Buff)
+                        
+                        if currentBuff == "None" then
+                            task.wait(5)
+                        elseif currentBuff:lower() ~= targetShrineBuff:lower() then
+                            pcall(function() Remote:FireServer("RerollHalloweenShrine") end)
+                            task.wait(3)
+                        else
+                            if shrine.StartTime and shrine.StartTime > 0 then
+                                local elapsed = os.time() - shrine.StartTime
+                                local total = 12 * 3600
+                                local remaining = total - elapsed
+                                
+                                if remaining < 10800 then -- Less than 3 hours
+                                    getgenv().ActivityStatus.current = "Buff almost ran out,Updating.. -Event Shrine"
+                                    getgenv().ActivityStatus.trigger = true
+                                    foundTarget = false -- trigger found message again after refresh
+                                    pcall(function() Remote:FireServer("RerollHalloweenShrine") end)
+                                    task.wait(3)
+                                else
+                                    if not foundTarget then
+                                        getgenv().ActivityStatus.current = targetShrineBuff .. " Found! -Event Shrine"
+                                        getgenv().ActivityStatus.trigger = true
+                                        foundTarget = true
+                                    end
+                                    task.wait(5)
+                                end
+                            else
+                                task.wait(5)
+                            end
+                        end
+                    else
+                        task.wait(5)
+                    end
+                end
+            end)
+        else
+            if shrineThread then task.cancel(shrineThread) end
         end
     end,
 })
@@ -970,6 +1130,80 @@ task.spawn(function()
                     end
                 end
                 task.wait(5)
+            end
+        end)
+    end
+    
+    if eventSettings.autoBuyDarkShop then
+        darkShopBuying = true
+        darkShopThread = task.spawn(function()
+            while darkShopBuying do
+                for _, item in ipairs(selectedDarkShopItems) do
+                    if not darkShopBuying then break end
+                    local value = type(item) == "table" and item[1] or item
+                    local slotIndex = nil
+                    for i, name in ipairs(currentDarkShopItems) do
+                        if name == value then slotIndex = i; break end
+                    end
+                    if slotIndex then
+                        pcall(function() RE:FireServer("BuyShopItem", "darkmarket-shop", slotIndex, true) end)
+                        task.wait(0.5)
+                    end
+                end
+                task.wait(5)
+            end
+        end)
+    end
+    
+    if eventSettings.autoShrineReroll then
+        shrineRunning = true
+        
+        getgenv().ActivityStatus.current = "Auto rerolling for " .. targetShrineBuff .. " -Event Shrine"
+        getgenv().ActivityStatus.trigger = true
+
+        shrineThread = task.spawn(function()
+            local foundTarget = false
+            
+            while shrineRunning do
+                task.wait(1)
+                local data = LocalData:Get()
+                local shrine = data and data.HalloweenShrine
+                
+                if shrine and shrine.Buff then
+                    local currentBuff = tostring(shrine.Buff)
+                    
+                    if currentBuff == "None" then
+                        task.wait(5)
+                    elseif currentBuff:lower() ~= targetShrineBuff:lower() then
+                        pcall(function() Remote:FireServer("RerollHalloweenShrine") end)
+                        task.wait(3)
+                    else
+                        if shrine.StartTime and shrine.StartTime > 0 then
+                            local elapsed = os.time() - shrine.StartTime
+                            local total = 12 * 3600
+                            local remaining = total - elapsed
+                            
+                            if remaining < 10800 then -- Less than 3 hours
+                                getgenv().ActivityStatus.current = "Buff almost ran out,Updating.. -Event Shrine"
+                                getgenv().ActivityStatus.trigger = true
+                                foundTarget = false
+                                pcall(function() Remote:FireServer("RerollHalloweenShrine") end)
+                                task.wait(3)
+                            else
+                                if not foundTarget then
+                                    getgenv().ActivityStatus.current = targetShrineBuff .. " Found! -Event Shrine"
+                                    getgenv().ActivityStatus.trigger = true
+                                    foundTarget = true
+                                end
+                                task.wait(5)
+                            end
+                        else
+                            task.wait(5)
+                        end
+                    end
+                else
+                    task.wait(5)
+                end
             end
         end)
     end
