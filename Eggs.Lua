@@ -507,7 +507,7 @@ local function findAdminShadowEgg()
 end
 
 -- ======================================
--- PART 1: SPECIAL EGGS & HATCH SELECTED
+-- UI - PART 1
 -- ======================================
 EggsTab:Section({ Title = "------- Special Eggs -------" })
 
@@ -548,7 +548,7 @@ EggsTab:Toggle({
                         end
 
                         pcall(function() Remote:FireServer("HatchEgg", egg.Name, HATCH_AMOUNT) end)
-                        task.wait(0.05)
+                        task.wait(0.1)
                     else
                         if currentMulti then
                             getgenv().ActivityStatus.current = "Finished " .. currentMulti.Name
@@ -606,7 +606,7 @@ EggsTab:Toggle({
                             end
 
                             pcall(function() Remote:FireServer("HatchEgg", "Admin Shadow Egg", HATCH_AMOUNT) end)
-                            task.wait(0.05)
+                            task.wait(0.1)
                             
                         elseif SpecialEventUtil.IsEventActive("event-shadowadmin") then
                             if not currentAdmin then
@@ -681,7 +681,7 @@ EggsTab:Toggle({
                                 lastTeleportTime = tick()
                             end
                             pcall(function() Remote:FireServer("HatchEgg", "Doodle Egg", HATCH_AMOUNT) end)
-                            task.wait(0.05)
+                            task.wait(0.1)
                         end
                         getgenv().ActivityStatus.current = "Finished Doodle Rift"
                         getgenv().ActivityStatus.trigger = true
@@ -826,7 +826,7 @@ EggsTab:Toggle({
                             wasActive = true
                         end
                         pcall(function() Remote:FireServer("HatchEgg", selectedEgg, HATCH_AMOUNT) end)
-                        task.wait(0.05)
+                        task.wait(0.1)
                     else
                         if not wasActive then
                             getgenv().ActivityStatus.current = "Auto Hatching " .. selectedEgg
@@ -835,7 +835,7 @@ EggsTab:Toggle({
                         end
                         teleportToEgg(selectedEgg)
                         pcall(function() Remote:FireServer("HatchEgg", selectedEgg, HATCH_AMOUNT) end)
-                        task.wait(0.05)
+                        task.wait(0.1)
                     end
                 end
             end)
@@ -859,7 +859,7 @@ EggsTab:Toggle({
                 local lastAutoHatchR = 0
                 while spamEEnabled do
                     VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-                    task.wait(0.05)
+                    task.wait(0.1)
                     VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
                     
                     local eggToHatch = nil
@@ -880,7 +880,7 @@ EggsTab:Toggle({
                         toggleAutoHatchR()
                     end
                     
-                    task.wait(0.05)
+                    task.wait(0.1)
                 end
             end)
         else
@@ -902,11 +902,11 @@ EggsTab:Toggle({
     end,
 })
 
--- WAIT FOR ROBLOX TO PROCESS THE UI BEFORE LOADING PART 2
-task.wait(1.5)
+-- WAIT FOR UI TO SETTLE BEFORE PART 2
+task.wait(1)
 
 -- ======================================
--- PART 2: INVENTORY, BOUNTY, XL BOUNTY
+-- UI - PART 2
 -- ======================================
 EggsTab:Section({ Title = "------- Inventory Egg -------" })
 
@@ -1039,7 +1039,7 @@ EggsTab:Toggle({
                                 wasActive = true
                             end
                             pcall(function() Remote:FireServer("HatchEgg", currentBountyEgg, HATCH_AMOUNT) end)
-                            task.wait(0.05)
+                            task.wait(0.1)
                         else
                             if not wasActive then
                                 getgenv().ActivityStatus.current = "Auto Hatching Bounty: " .. currentBountyPet .. " from " .. currentBountyEgg
@@ -1048,7 +1048,7 @@ EggsTab:Toggle({
                             end
                             teleportToEgg(currentBountyEgg)
                             pcall(function() Remote:FireServer("HatchEgg", currentBountyEgg, HATCH_AMOUNT) end)
-                            task.wait(0.05)
+                            task.wait(0.1)
                         end
                     else
                         wasActive = false
@@ -1162,7 +1162,7 @@ EggsTab:Toggle({
                             wasActive = true
                         end
                         pcall(function() Remote:FireServer("HatchEgg", selectedXLEgg, HATCH_AMOUNT) end)
-                        task.wait(0.05)
+                        task.wait(0.1)
                     else
                         if not wasActive then
                             getgenv().ActivityStatus.current = "Auto Hatching XL Bounty: " .. selectedXLEgg
@@ -1171,7 +1171,7 @@ EggsTab:Toggle({
                         end
                         teleportToEgg(selectedXLEgg)
                         pcall(function() Remote:FireServer("HatchEgg", selectedXLEgg, HATCH_AMOUNT) end)
-                        task.wait(0.05)
+                        task.wait(0.1)
                     end
                 end
             end)
@@ -1185,7 +1185,7 @@ EggsTab:Toggle({
 -- BACKGROUND BOUNTY UPDATER & AUTO-START
 -- ======================================
 task.spawn(function()
-    task.wait(2)
+    task.wait(1)
     pcall(function() refreshBountyLabels() end)
     
     while true do
@@ -1225,7 +1225,7 @@ task.spawn(function()
                     end
 
                     pcall(function() Remote:FireServer("HatchEgg", egg.Name, HATCH_AMOUNT) end)
-                    task.wait(0.05)
+                    task.wait(0.1)
                 else
                     if currentMulti then
                         getgenv().ActivityStatus.current = "Finished " .. currentMulti.Name
@@ -1268,7 +1268,7 @@ task.spawn(function()
                         end
 
                         pcall(function() Remote:FireServer("HatchEgg", "Admin Shadow Egg", HATCH_AMOUNT) end)
-                        task.wait(0.05)
+                        task.wait(0.1)
                         
                     elseif SpecialEventUtil.IsEventActive("event-shadowadmin") then
                         if not currentAdmin then
@@ -1328,7 +1328,7 @@ task.spawn(function()
                             lastTeleportTime = tick()
                         end
                         pcall(function() Remote:FireServer("HatchEgg", "Doodle Egg", HATCH_AMOUNT) end)
-                        task.wait(0.05)
+                        task.wait(0.1)
                     end
                     getgenv().ActivityStatus.current = "Finished Doodle Rift"
                     getgenv().ActivityStatus.trigger = true
@@ -1379,7 +1379,7 @@ task.spawn(function()
                         wasActive = true
                     end
                     pcall(function() Remote:FireServer("HatchEgg", selectedEgg, HATCH_AMOUNT) end)
-                    task.wait(0.05)
+                    task.wait(0.1)
                 else
                     if not wasActive then
                         getgenv().ActivityStatus.current = "Auto Hatching " .. selectedEgg
@@ -1388,7 +1388,7 @@ task.spawn(function()
                     end
                     teleportToEgg(selectedEgg)
                     pcall(function() Remote:FireServer("HatchEgg", selectedEgg, HATCH_AMOUNT) end)
-                    task.wait(0.05)
+                    task.wait(0.1)
                 end
             end
         end)
@@ -1399,7 +1399,7 @@ task.spawn(function()
             local lastAutoHatchR = 0
             while spamEEnabled do
                 VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-                task.wait(0.05)
+                task.wait(0.1)
                 VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
                 
                 local eggToHatch = nil
@@ -1420,7 +1420,7 @@ task.spawn(function()
                     toggleAutoHatchR()
                 end
                 
-                task.wait(0.05)
+                task.wait(0.1)
             end
         end)
     end
@@ -1467,7 +1467,7 @@ task.spawn(function()
                             wasActive = true
                         end
                         pcall(function() Remote:FireServer("HatchEgg", currentBountyEgg, HATCH_AMOUNT) end)
-                        task.wait(0.05)
+                        task.wait(0.1)
                     else
                         if not wasActive then
                             getgenv().ActivityStatus.current = "Auto Hatching Bounty: " .. currentBountyPet .. " from " .. currentBountyEgg
@@ -1476,7 +1476,7 @@ task.spawn(function()
                         end
                         teleportToEgg(currentBountyEgg)
                         pcall(function() Remote:FireServer("HatchEgg", currentBountyEgg, HATCH_AMOUNT) end)
-                        task.wait(0.05)
+                        task.wait(0.1)
                     end
                 else
                     wasActive = false
