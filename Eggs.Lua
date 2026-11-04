@@ -14,7 +14,7 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 
 -- ======================================
--- DATA MODULES (SAFE)
+-- DATA MODULES
 -- ======================================
 local SecretBountyUtil = require(ReplicatedStorage.Shared.Utils.Stats.SecretBountyUtil)
 local XLEggUtil = require(ReplicatedStorage.Shared.Utils.XLEggUtil)
@@ -100,12 +100,12 @@ if eggSettings.discoveredEggs then
 end
 
 -- ======================================
--- INVENTORY EGGS LIST (SAFE)
+-- INVENTORY EGGS LIST
 -- ======================================
 local function getInventoryEggs()
     local eggs = {}
-    local ok, data = pcall(function() return LocalData:Get() end)
-    if ok and data and data.Powerups then
+    local data = LocalData:Get()
+    if data and data.Powerups then
         for name, amount in pairs(data.Powerups) do
             if name:find("Egg") and amount > 0 and name ~= "Royal Egg" then
                 table.insert(eggs, name)
@@ -119,6 +119,9 @@ local function getInventoryEggs()
     return eggs
 end
 
+-- ======================================
+-- AUTO-DISCOVERY
+-- ======================================
 local function isRiftEggName(name)
     return name:lower() == name and name:find("%-egg$") ~= nil
 end
@@ -162,9 +165,9 @@ end
 -- ======================================
 local HATCH_AMOUNT = eggSettings.hatchAmount or 12
 local selectedEgg = eggSettings.selectedEgg or "Common Egg"
-local currentBountyPet = "Unknown"
-local currentBountyEgg = "Unknown"
-local currentBountyChance = "Unknown"
+local currentBountyPet = "None"
+local currentBountyEgg = "None"
+local currentBountyChance = "None"
 local currentBountyRarity = "None"
 
 local BOUNTY_RARITY_OPTIONS = {"Current", "Void", "Infinity", "Celestial", "Secret"}
@@ -956,22 +959,17 @@ EggsTab:Toggle({
 })
 
 -- ======================================
--- UI - BOUNTY HATCH
+-- UI - BOUNTY HATCH (SAFE)
 -- ======================================
-task.spawn(function()
-    task.wait(0.5)
-    pcall(function() updateBountyInfo() end)
-end)
-
 EggsTab:Section({ Title = "------- Bounty Hatch -------" })
 
 local bountyPetParagraph = EggsTab:Paragraph({
-    Title = "Bounty Pet: " .. currentBountyPet .. " [" .. currentBountyRarity .. "]",
-    Desc = "Egg: " .. currentBountyEgg .. " | Chance: " .. currentBountyChance,
+    Title = "Bounty Pet: Loading...",
+    Desc = "Please wait...",
 })
 
 local bountyResetParagraph = EggsTab:Paragraph({
-    Title = "Resets in: " .. getTimeUntilReset(),
+    Title = "Resets in: Loading...",
     Desc = "Automatically updates",
 })
 
@@ -1110,7 +1108,7 @@ EggsTab:Toggle({
 })
 
 -- ======================================
--- UI - XL EGG BOUNTY
+-- UI - XL EGG BOUNTY (SAFE)
 -- ======================================
 EggsTab:Section({ Title = "------- XL Egg Bounty -------" })
 
@@ -1188,6 +1186,19 @@ EggsTab:Toggle({
         end
     end,
 })
+
+-- ======================================
+-- BACKGROUND BOUNTY UPDATER
+-- ======================================
+task.spawn(function()
+    task.wait(1)
+    pcall(function() refreshBountyLabels() end)
+    
+    while true do
+        task.wait(60)
+        pcall(function() refreshBountyLabels() end)
+    end
+end)
 
 -- ======================================
 -- AUTO-START SAVED TOGGLES
