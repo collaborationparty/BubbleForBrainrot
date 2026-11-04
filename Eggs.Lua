@@ -1,6 +1,8 @@
 -- ================================================
 -- EGGS TAB (WINDUI VERSION)
 -- ================================================
+if setthreadidentity then setthreadidentity(8) end
+
 repeat task.wait() until getgenv().Window
 local Window = getgenv().Window
 local WindUI = getgenv().WindUI
