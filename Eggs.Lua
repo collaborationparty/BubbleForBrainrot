@@ -1,8 +1,6 @@
 -- ================================================
 -- EGGS TAB (WINDUI VERSION)
 -- ================================================
-if setthreadidentity then setthreadidentity(8) end
-
 repeat task.wait() until getgenv().Window
 local Window = getgenv().Window
 local WindUI = getgenv().WindUI
@@ -16,7 +14,7 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local player = Players.LocalPlayer
 
 -- ======================================
--- DATA MODULES
+-- DATA MODULES (SAFE)
 -- ======================================
 local SecretBountyUtil = require(ReplicatedStorage.Shared.Utils.Stats.SecretBountyUtil)
 local XLEggUtil = require(ReplicatedStorage.Shared.Utils.XLEggUtil)
@@ -102,12 +100,12 @@ if eggSettings.discoveredEggs then
 end
 
 -- ======================================
--- INVENTORY EGGS LIST
+-- INVENTORY EGGS LIST (SAFE)
 -- ======================================
 local function getInventoryEggs()
     local eggs = {}
-    local data = LocalData:Get()
-    if data and data.Powerups then
+    local ok, data = pcall(function() return LocalData:Get() end)
+    if ok and data and data.Powerups then
         for name, amount in pairs(data.Powerups) do
             if name:find("Egg") and amount > 0 and name ~= "Royal Egg" then
                 table.insert(eggs, name)
@@ -121,9 +119,6 @@ local function getInventoryEggs()
     return eggs
 end
 
--- ======================================
--- AUTO-DISCOVERY FROM workspace.Rendered.Generic
--- ======================================
 local function isRiftEggName(name)
     return name:lower() == name and name:find("%-egg$") ~= nil
 end
@@ -241,9 +236,6 @@ local function eggNameToKey(name)
     return name:lower():gsub("%s+", "-")
 end
 
--- ======================================
--- TRUE RARITY CHECK
--- ======================================
 local function getTrueRarity(info)
     if not info then return "None" end
     if info.Void then return "Void" end
@@ -253,9 +245,6 @@ local function getTrueRarity(info)
     return info.Rarity or "None"
 end
 
--- ======================================
--- HIGHEST LUCK RIFT
--- ======================================
 local function getRiftLuck(rift)
     local display = rift:FindFirstChild("Display")
     if display then
@@ -487,9 +476,6 @@ local function toggleAutoHatchR()
     VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
 end
 
--- ======================================
--- MULTI EGG DETECTION
--- ======================================
 local function findMultiEgg()
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("Model") then
@@ -972,7 +958,10 @@ EggsTab:Toggle({
 -- ======================================
 -- UI - BOUNTY HATCH
 -- ======================================
-updateBountyInfo()
+task.spawn(function()
+    task.wait(0.5)
+    pcall(function() updateBountyInfo() end)
+end)
 
 EggsTab:Section({ Title = "------- Bounty Hatch -------" })
 
