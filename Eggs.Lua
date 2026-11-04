@@ -507,7 +507,7 @@ local function findAdminShadowEgg()
 end
 
 -- ======================================
--- UI - SPECIAL EGGS
+-- PART 1: SPECIAL EGGS & HATCH SELECTED
 -- ======================================
 EggsTab:Section({ Title = "------- Special Eggs -------" })
 
@@ -699,9 +699,6 @@ EggsTab:Toggle({
     end,
 })
 
--- ======================================
--- UI - HATCH SELECTED EGG
--- ======================================
 EggsTab:Section({ Title = "------- Hatch Selected Egg -------" })
 
 local eggDropdown = EggsTab:Dropdown({
@@ -905,8 +902,11 @@ EggsTab:Toggle({
     end,
 })
 
+-- WAIT FOR ROBLOX TO PROCESS THE UI BEFORE LOADING PART 2
+task.wait(1.5)
+
 -- ======================================
--- UI - INVENTORY EGG
+-- PART 2: INVENTORY, BOUNTY, XL BOUNTY
 -- ======================================
 EggsTab:Section({ Title = "------- Inventory Egg -------" })
 
@@ -958,10 +958,26 @@ EggsTab:Toggle({
     end,
 })
 
--- ======================================
--- UI - BOUNTY HATCH (NO DISPLAY)
--- ======================================
 EggsTab:Section({ Title = "------- Bounty Hatch -------" })
+
+local bountyPetParagraph = EggsTab:Paragraph({
+    Title = "Bounty Pet: Loading...",
+    Desc = "Please wait...",
+})
+
+local bountyResetParagraph = EggsTab:Paragraph({
+    Title = "Resets in: Loading...",
+    Desc = "Automatically updates",
+})
+
+local function refreshBountyLabels()
+    updateBountyInfo()
+    pcall(function() 
+        bountyPetParagraph:SetTitle("Bounty Pet: " .. currentBountyPet .. " [" .. currentBountyRarity .. "]")
+        bountyPetParagraph:SetDesc("Egg: " .. currentBountyEgg .. " | Chance: " .. currentBountyChance)
+    end)
+    pcall(function() bountyResetParagraph:SetTitle("Resets in: " .. getTimeUntilReset()) end)
+end
 
 EggsTab:Dropdown({
     Title = "Prioritize Bounty Rarity",
@@ -986,7 +1002,7 @@ EggsTab:Toggle({
         getgenv().HubSettings.eggs = eggSettings
         saveHubSettings()
         if v then
-            updateBountyInfo()
+            refreshBountyLabels()
             bountyThread = task.spawn(function()
                 local wasActive = false
                 local currentLuck = 0
@@ -1000,7 +1016,7 @@ EggsTab:Toggle({
                         task.wait(0.5)
                     end
                     
-                    updateBountyInfo()
+                    refreshBountyLabels()
                     
                     local matchesFilter = (bountyRarityFilter == "Current") or (currentBountyRarity == bountyRarityFilter)
                     
@@ -1056,7 +1072,7 @@ EggsTab:Toggle({
         getgenv().HubSettings.eggs = eggSettings
         saveHubSettings()
         if v then
-            updateBountyInfo()
+            refreshBountyLabels()
             local world = EGG_WORLDS[currentBountyEgg] or "The Overworld"
             pcall(function()
                 RemoteFunction:InvokeServer("SummonRift", {
@@ -1070,7 +1086,7 @@ EggsTab:Toggle({
             riftThread = task.spawn(function()
                 while riftEnabled do
                     task.wait(1860)
-                    updateBountyInfo()
+                    refreshBountyLabels()
                     pcall(function()
                         RemoteFunction:InvokeServer("SummonRift", {
                             Type = "Egg",
@@ -1088,9 +1104,6 @@ EggsTab:Toggle({
     end,
 })
 
--- ======================================
--- UI - XL EGG BOUNTY (SAFE)
--- ======================================
 EggsTab:Section({ Title = "------- XL Egg Bounty -------" })
 
 EggsTab:Dropdown({
@@ -1169,8 +1182,18 @@ EggsTab:Toggle({
 })
 
 -- ======================================
--- AUTO-START SAVED TOGGLES
+-- BACKGROUND BOUNTY UPDATER & AUTO-START
 -- ======================================
+task.spawn(function()
+    task.wait(2)
+    pcall(function() refreshBountyLabels() end)
+    
+    while true do
+        task.wait(60)
+        pcall(function() refreshBountyLabels() end)
+    end
+end)
+
 task.spawn(function()
     task.wait(1.5)
     
@@ -1407,7 +1430,7 @@ task.spawn(function()
     end
     
     if bountyEnabled then
-        updateBountyInfo()
+        refreshBountyLabels()
         bountyThread = task.spawn(function()
             local wasActive = false
             local currentLuck = 0
@@ -1421,7 +1444,7 @@ task.spawn(function()
                     task.wait(0.5)
                 end
                 
-                updateBountyInfo()
+                refreshBountyLabels()
                 
                 local matchesFilter = (bountyRarityFilter == "Current") or (currentBountyRarity == bountyRarityFilter)
                 
@@ -1464,7 +1487,7 @@ task.spawn(function()
     end
     
     if riftEnabled then
-        updateBountyInfo()
+        refreshBountyLabels()
         local world = EGG_WORLDS[currentBountyEgg] or "The Overworld"
         pcall(function()
             RemoteFunction:InvokeServer("SummonRift", {
@@ -1478,7 +1501,7 @@ task.spawn(function()
         riftThread = task.spawn(function()
             while riftEnabled do
                 task.wait(1860)
-                updateBountyInfo()
+                refreshBountyLabels()
                 pcall(function()
                     RemoteFunction:InvokeServer("SummonRift", {
                         Type = "Egg",
