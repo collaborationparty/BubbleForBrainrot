@@ -1,5 +1,5 @@
 -- ================================================
--- EGGS TAB (WINDUI VERSION)
+-- EGGS TAB (WINDUI VERSION - FINAL FIX)
 -- ================================================
 repeat task.wait() until getgenv().Window
 local Window = getgenv().Window
@@ -100,7 +100,7 @@ if eggSettings.discoveredEggs then
 end
 
 -- ======================================
--- FUNCTIONS (Moved up)
+-- FUNCTIONS
 -- ======================================
 local function getInventoryEggs()
     local eggs = {}
@@ -162,7 +162,7 @@ end
 -- ======================================
 local HATCH_AMOUNT = eggSettings.hatchAmount or 12
 local selectedEgg = eggSettings.selectedEgg or "Common Egg"
-local currentBountyPet, currentBountyEgg, currentBountyChance, currentBountyRarity = "None", "None", "None", "None"
+local currentBountyPet, currentBountyEgg, currentBountyRarity = "None", "None", "None"
 
 local BOUNTY_RARITY_OPTIONS = {"Current", "Void", "Infinity", "Celestial", "Secret"}
 local bountyRarityFilter = eggSettings.bountyRarityFilter or "Current"
@@ -295,6 +295,9 @@ local function teleportToBestRift(eggName)
 end
 
 local function teleportToEgg(eggName)
+    -- HARD STOP: If a quest is active, do not teleport.
+    if getgenv().questActive then return false end
+    
     local pos = EGG_LOCATIONS[eggName] or discoveredEggs[eggName]
     if not pos then
         for _, obj in ipairs(workspace:GetDescendants()) do
@@ -399,7 +402,6 @@ local function updateBountyInfo()
     if ok and bounty then
         currentBountyPet = bounty.Name or "Unknown"
         currentBountyEgg = bounty.Egg or "Unknown"
-        currentBountyChance = bounty.Chance and "1/" .. tostring(math.floor(1/bounty.Chance)) or "Unknown"
         
         local info = Pets[currentBountyPet]
         currentBountyRarity = getTrueRarity(info)
@@ -635,13 +637,11 @@ task.spawn(function()
                 if autoHatchThread then task.cancel(autoHatchThread) end
                 autoHatchThread = task.spawn(function()
                     while autoHatchEnabled do
-                        -- YIELD IF QUEST OR BOUNTY IS ACTIVE
                         local bountyOverride = bountyEnabled and (bountyRarityFilter == "Current" or currentBountyRarity == bountyRarityFilter)
                         while (getgenv().questActive or bountyOverride) and autoHatchEnabled do
                             task.wait(0.5)
                             bountyOverride = bountyEnabled and (bountyRarityFilter == "Current" or currentBountyRarity == bountyRarityFilter)
                         end
-                        
                         teleportToEgg(selectedEgg)
                         pcall(function() Remote:FireServer("HatchEgg", selectedEgg, HATCH_AMOUNT) end)
                         task.wait(0.1)
@@ -829,7 +829,7 @@ task.spawn(function()
     })
 
     -- ======================================
-    -- AUTO-START SAVED TOGGLES (FIXED)
+    -- AUTO-START SAVED TOGGLES
     -- ======================================
     task.wait(0.5)
     
