@@ -1,5 +1,5 @@
 -- ================================================
--- EGGS TAB (WINDUI VERSION - FINAL FIX)
+-- EGGS TAB (WINDUI VERSION)
 -- ================================================
 repeat task.wait() until getgenv().Window
 local Window = getgenv().Window
