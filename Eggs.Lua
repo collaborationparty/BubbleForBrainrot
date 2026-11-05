@@ -635,10 +635,13 @@ task.spawn(function()
                 if autoHatchThread then task.cancel(autoHatchThread) end
                 autoHatchThread = task.spawn(function()
                     while autoHatchEnabled do
+                        -- YIELD IF QUEST OR BOUNTY IS ACTIVE
                         local bountyOverride = bountyEnabled and (bountyRarityFilter == "Current" or currentBountyRarity == bountyRarityFilter)
                         while (getgenv().questActive or bountyOverride) and autoHatchEnabled do
                             task.wait(0.5)
+                            bountyOverride = bountyEnabled and (bountyRarityFilter == "Current" or currentBountyRarity == bountyRarityFilter)
                         end
+                        
                         teleportToEgg(selectedEgg)
                         pcall(function() Remote:FireServer("HatchEgg", selectedEgg, HATCH_AMOUNT) end)
                         task.wait(0.1)
@@ -830,7 +833,6 @@ task.spawn(function()
     -- ======================================
     task.wait(0.5)
     
-    -- Auto 4x/5x
     if multiEggEnabled then
         multiEggThread = task.spawn(function()
             while multiEggEnabled do
@@ -853,7 +855,6 @@ task.spawn(function()
         end)
     end
 
-    -- Auto Admin Shadow
     if adminShadowEnabled then
         adminShadowThread = task.spawn(function()
             while adminShadowEnabled do
@@ -880,7 +881,6 @@ task.spawn(function()
         end)
     end
 
-    -- Auto Doodle
     if doodleEnabled then
         doodleThread = task.spawn(function()
             while doodleEnabled do
@@ -900,13 +900,13 @@ task.spawn(function()
         end)
     end
 
-    -- Auto Hatch
     if autoHatchEnabled then
         autoHatchThread = task.spawn(function()
             while autoHatchEnabled do
                 local bountyOverride = bountyEnabled and (bountyRarityFilter == "Current" or currentBountyRarity == bountyRarityFilter)
                 while (getgenv().questActive or bountyOverride) and autoHatchEnabled do
                     task.wait(0.5)
+                    bountyOverride = bountyEnabled and (bountyRarityFilter == "Current" or currentBountyRarity == bountyRarityFilter)
                 end
                 teleportToEgg(selectedEgg)
                 pcall(function() Remote:FireServer("HatchEgg", selectedEgg, HATCH_AMOUNT) end)
@@ -915,7 +915,6 @@ task.spawn(function()
         end)
     end
 
-    -- Auto Spam E
     if spamEEnabled then
         spamEThread = task.spawn(function()
             while spamEEnabled do
@@ -931,12 +930,10 @@ task.spawn(function()
         end)
     end
 
-    -- Hide Anim
     if hideAnimEnabled then
         getgenv().animationHidden = true
     end
 
-    -- Auto Bounty
     if bountyEnabled then
         bountyThread = task.spawn(function()
             while bountyEnabled do
@@ -953,7 +950,6 @@ task.spawn(function()
         end)
     end
 
-    -- Auto Summon Rift
     if riftEnabled then
         riftThread = task.spawn(function()
             while riftEnabled do
