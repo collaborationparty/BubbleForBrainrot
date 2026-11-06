@@ -295,9 +295,6 @@ local function teleportToBestRift(eggName)
 end
 
 local function teleportToEgg(eggName)
-    -- HARD STOP: If a quest is active, do not teleport.
-    if getgenv().questActive then return false end
-    
     local pos = EGG_LOCATIONS[eggName] or discoveredEggs[eggName]
     if not pos then
         for _, obj in ipairs(workspace:GetDescendants()) do
@@ -499,14 +496,13 @@ task.spawn(function()
                             pcall(function() Remote:FireServer("HatchEgg", egg.Name, HATCH_AMOUNT) end)
                             task.wait(0.1)
                         else
-                            getgenv().questActive = false
+                            -- REMOVED: getgenv().questActive = false
                             task.wait(1)
                         end
                     end
                 end)
             elseif multiEggThread then
                 task.cancel(multiEggThread)
-                getgenv().questActive = false
             end
         end,
     })
@@ -540,14 +536,13 @@ task.spawn(function()
                             if root then root.CFrame = CFrame.new(128, 10, 89) end
                             task.wait(3)
                         else
-                            getgenv().questActive = false
+                            -- REMOVED: getgenv().questActive = false
                             task.wait(1)
                         end
                     end
                 end)
             elseif adminShadowThread then
                 task.cancel(adminShadowThread)
-                getgenv().questActive = false
             end
         end,
     })
@@ -572,14 +567,13 @@ task.spawn(function()
                                 pcall(function() Remote:FireServer("HatchEgg", "Doodle Egg", HATCH_AMOUNT) end)
                                 task.wait(0.1)
                             end
-                            getgenv().questActive = false
+                            -- REMOVED: getgenv().questActive = false
                         end
                         task.wait(1)
                     end
                 end)
             elseif doodleThread then
                 task.cancel(doodleThread)
-                getgenv().questActive = false
             end
         end,
     })
@@ -848,7 +842,6 @@ task.spawn(function()
                     pcall(function() Remote:FireServer("HatchEgg", egg.Name, HATCH_AMOUNT) end)
                     task.wait(0.1)
                 else
-                    getgenv().questActive = false
                     task.wait(1)
                 end
             end
@@ -874,7 +867,6 @@ task.spawn(function()
                     if root then root.CFrame = CFrame.new(128, 10, 89) end
                     task.wait(3)
                 else
-                    getgenv().questActive = false
                     task.wait(1)
                 end
             end
@@ -893,7 +885,6 @@ task.spawn(function()
                         pcall(function() Remote:FireServer("HatchEgg", "Doodle Egg", HATCH_AMOUNT) end)
                         task.wait(0.1)
                     end
-                    getgenv().questActive = false
                 end
                 task.wait(1)
             end
