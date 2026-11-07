@@ -608,7 +608,7 @@ task.spawn(function()
 
     EggsTab:Section({ Title = "------- Hatch Selected Egg -------" })
 
-    EggsTab:Dropdown({
+    local eggDropdown = EggsTab:Dropdown({
         Title = "Select Egg",
         Values = getAllEggNames(),
         Value = selectedEgg,
@@ -622,16 +622,37 @@ task.spawn(function()
     EggsTab:Button({
         Title = "Re Scan The Egg Dropdown",
         Callback = function()
+            task.wait(1) -- Let Roblox stream in nearby eggs
             local found = scanAndDiscoverEggs()
+            local newCount = 0
+
             discoveredEggs = {}
             for name, pos in pairs(found) do
                 discoveredEggs[name] = pos
+                if not EGG_LOCATIONS[name] then
+                    newCount = newCount + 1
+                    print("[Eggs] Discovered: " .. name)
+                end
             end
+
             eggSettings.discoveredEggs = {}
             for name, pos in pairs(discoveredEggs) do
                 eggSettings.discoveredEggs[name] = {pos.X, pos.Y, pos.Z}
             end
             saveHubSettings()
+
+            local newEggs = getAllEggNames()
+            for i = #eggDropdown.Values, 1, -1 do
+                eggDropdown.Values[i] = nil
+            end
+            for _, eggName in ipairs(newEggs) do
+                table.insert(eggDropdown.Values, eggName)
+            end
+
+            local currentValue = eggDropdown.Value
+            pcall(function() eggDropdown:Select(currentValue) end)
+
+            print("[Eggs] Rescan complete: " .. #newEggs .. " eggs (" .. newCount .. " new)")
         end,
     })
 
@@ -670,7 +691,6 @@ task.spawn(function()
                         )
                         local questActive = getgenv().questActive
                         
-                        -- Track idle time
                         if questActive or specialEggActive or bountyOverride then
                             questIdleTimer = 0
                         else
