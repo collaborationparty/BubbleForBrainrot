@@ -238,7 +238,6 @@ local function completeQuest(quest)
             end
             restorePosition(prevPos)
         else
-            getgenv().questActive = false
             getgenv().questEgg = nil
             task.wait(5)
         end
@@ -403,8 +402,7 @@ local function completeQuest(quest)
         end
     end
     
-    getgenv().questActive = false
-    getgenv().questEgg = nil
+    -- DO NOT turn off questActive here. Let the loop handle it.
 end
 
 local function questLoop(filter)
@@ -541,8 +539,6 @@ local function claimIncentiveRewards()
     
     if not gi then return end
     
-    -- Do NOT toggle gi.Visible — button signals work even when hidden
-    
     -- Claim Rewards track (Score-based) - 15 tiers
     local scroller = gi.Frame
         and gi.Frame:FindFirstChild("Content")
@@ -659,7 +655,7 @@ local seasonStatusParagraph = QuestTab:Paragraph({
 
 QuestTab:Toggle({
     Title = "Auto Claim Season Pass",
-    Desc = "Claims season rewards automatically",
+    Desc = "Claims season rewards automatically (Normal + Infinity)",
     Value = claimRunning,
     Callback = function(v)
         claimRunning = v
@@ -670,16 +666,8 @@ QuestTab:Toggle({
             
             claimThread = task.spawn(function()
                 while claimRunning do
-                    local playerGui = player:FindFirstChild("PlayerGui")
-                    local screenGui = playerGui and playerGui:FindFirstChild("ScreenGui")
-                    local seasonUI = screenGui and screenGui:FindFirstChild("Season")
-                    if seasonUI and seasonUI.Visible then
-                        seasonUI.Visible = false
-                        task.wait(1.5)
-                    end
-                    
+                    -- Check for premium pet first
                     local premiumPet = checkSeasonPremiumPet()
-                    
                     if premiumPet then
                         claimRunning = false
                         
@@ -698,8 +686,52 @@ QuestTab:Toggle({
                         break
                     end
                     
-                    pcall(function() RE:FireServer("ClaimSeason") end)
-                    task.wait(5)
+                    local playerGui = player:FindFirstChild("PlayerGui")
+                    local screenGui = playerGui and playerGui:FindFirstChild("ScreenGui")
+                    local seasonUI = screenGui and screenGui:FindFirstChild("Season")
+                    
+                    if seasonUI then
+                        -- Force UI visible if hidden
+                        if not seasonUI.Visible then
+                            seasonUI.Visible = true
+                            task.wait(1)
+                        end
+                        
+                        -- 1. Check if there are tiers available to claim
+                        local track = seasonUI.Frame.Content.Rewards.Track
+                        local claimedAny = false
+                        
+                        if track then
+                            for _, tier in ipairs(track:GetChildren()) do
+                                if tier.Name:find("Tier") then
+                                    local action = tier:FindFirstChild("Action")
+                                    if action then
+                                        local btn = action:FindFirstChild("Button")
+                                        if btn and (btn.Text == "Claim" or btn.Text == "BEGIN!") then
+                                            pcall(function() firesignal(btn.Activated) end)
+                                            claimedAny = true
+                                            task.wait(1) -- Wait for server to process
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                        
+                        -- 2. If no tiers were claimed, check if we need to start Infinity track
+                        if not claimedAny then
+                            local beginBtn = seasonUI.Frame.Cover and seasonUI.Frame.Cover:FindFirstChild("Action") and seasonUI.Frame.Cover.Action:FindFirstChild("Button")
+                            if beginBtn and beginBtn.Text == "BEGIN!" then
+                                pcall(function() firesignal(beginBtn.Activated) end)
+                                task.wait(2)
+                            end
+                        end
+                        
+                        -- 3. Close UI so it doesn't block your screen
+                        seasonUI.Visible = false
+                        task.wait(2)
+                    else
+                        task.wait(2)
+                    end
                 end
             end)
         else
