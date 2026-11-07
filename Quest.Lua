@@ -180,7 +180,8 @@ local function getAvailableCrate()
 end
 
 local function completeQuest(quest)
-    getgenv().questActive = true
+    -- NOTE: Do NOT set questActive = false at the end.
+    -- The questLoop manages the flag now.
     
     if quest.type == "Bubbles" then
         getgenv().questEgg = nil
@@ -282,8 +283,6 @@ local function completeQuest(quest)
                 restorePosition(prevPos)
             else
                 skippedQuests[quest.id] = true
-                getgenv().questActive = false
-                getgenv().questEgg = nil
                 task.wait(1)
                 return
             end
@@ -402,21 +401,25 @@ local function completeQuest(quest)
         end
     end
     
-    getgenv().questActive = false
+    -- Removed: getgenv().questActive = false (managed by questLoop)
 end
 
 local function questLoop(filter)
     return function()
         while true do
-            getgenv().questActive = false
-            getgenv().questEgg = nil
-            
             local quests = getActiveQuests(filter)
+            
             if #quests == 0 then
+                -- Truly done with all quests
                 skippedQuests = {}
+                getgenv().questActive = false
+                getgenv().questEgg = nil
                 task.wait(10)
                 continue
             end
+            
+            -- We have quests. Lock the flag ON before doing anything.
+            getgenv().questActive = true
             
             local questToDo = nil
             for _, q in ipairs(quests) do
@@ -440,6 +443,9 @@ local function questLoop(filter)
                 getgenv().ActivityStatus.current = "Season Pass done!"
                 getgenv().ActivityStatus.trigger = true
             else
+                -- All remaining quests are skipped (pearl quests with no crates)
+                getgenv().questActive = false
+                getgenv().questEgg = nil
                 task.wait(30)
             end
         end
@@ -714,14 +720,17 @@ QuestTab:Toggle({
         if v then
             globalThread = task.spawn(function()
                 while globalRunning do
-                    getgenv().questActive = false
-                    getgenv().questEgg = nil
-                    
                     local quests = getActiveQuests("global")
+                    
                     if #quests == 0 then
                         pcall(function() Remote:FireServer("ClaimGlobalIncentiveQuest") end)
+                        getgenv().questActive = false
+                        getgenv().questEgg = nil
                         task.wait(60)
                     else
+                        -- Lock the flag ON before doing anything
+                        getgenv().questActive = true
+                        
                         local questToDo = nil
                         for _, q in ipairs(quests) do
                             local curr = q.currency or ""
@@ -736,6 +745,7 @@ QuestTab:Toggle({
                                 break
                             end
                         end
+                        
                         if questToDo then
                             getgenv().ActivityStatus.current = "Doing Global Incentive..."
                             getgenv().ActivityStatus.trigger = true
@@ -743,6 +753,8 @@ QuestTab:Toggle({
                             getgenv().ActivityStatus.current = "Global Incentive done!"
                             getgenv().ActivityStatus.trigger = true
                         else
+                            getgenv().questActive = false
+                            getgenv().questEgg = nil
                             task.wait(30)
                         end
                     end
@@ -793,14 +805,16 @@ task.spawn(function()
         globalRunning = true
         globalThread = task.spawn(function()
             while globalRunning do
-                getgenv().questActive = false
-                getgenv().questEgg = nil
-                
                 local quests = getActiveQuests("global")
+                
                 if #quests == 0 then
                     pcall(function() Remote:FireServer("ClaimGlobalIncentiveQuest") end)
+                    getgenv().questActive = false
+                    getgenv().questEgg = nil
                     task.wait(60)
                 else
+                    getgenv().questActive = true
+                    
                     local questToDo = nil
                     for _, q in ipairs(quests) do
                         local curr = q.currency or ""
@@ -815,6 +829,7 @@ task.spawn(function()
                             break
                         end
                     end
+                    
                     if questToDo then
                         getgenv().ActivityStatus.current = "Doing Global Incentive..."
                         getgenv().ActivityStatus.trigger = true
@@ -822,6 +837,8 @@ task.spawn(function()
                         getgenv().ActivityStatus.current = "Global Incentive done!"
                         getgenv().ActivityStatus.trigger = true
                     else
+                        getgenv().questActive = false
+                        getgenv().questEgg = nil
                         task.wait(30)
                     end
                 end
