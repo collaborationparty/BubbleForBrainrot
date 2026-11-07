@@ -402,17 +402,18 @@ local function completeQuest(quest)
         end
     end
     
-    -- DO NOT turn off questActive here. Let the loop handle it.
+    getgenv().questActive = false
 end
 
 local function questLoop(filter)
     return function()
         while true do
+            getgenv().questActive = false
+            getgenv().questEgg = nil
+            
             local quests = getActiveQuests(filter)
             if #quests == 0 then
                 skippedQuests = {}
-                getgenv().questActive = false
-                getgenv().questEgg = nil
                 task.wait(10)
                 continue
             end
@@ -439,8 +440,6 @@ local function questLoop(filter)
                 getgenv().ActivityStatus.current = "Season Pass done!"
                 getgenv().ActivityStatus.trigger = true
             else
-                getgenv().questActive = false
-                getgenv().questEgg = nil
                 task.wait(30)
             end
         end
@@ -539,7 +538,6 @@ local function claimIncentiveRewards()
     
     if not gi then return end
     
-    -- Claim Rewards track (Score-based) - 15 tiers
     local scroller = gi.Frame
         and gi.Frame:FindFirstChild("Content")
         and gi.Frame.Content:FindFirstChild("Rewards")
@@ -563,7 +561,6 @@ local function claimIncentiveRewards()
         end
     end
     
-    -- Claim Global track (Bubble-based) - 13 tiers
     local globalContent = gi:FindFirstChild("Global")
         and gi.Global:FindFirstChild("List")
         and gi.Global.List:FindFirstChild("Content")
@@ -666,7 +663,6 @@ QuestTab:Toggle({
             
             claimThread = task.spawn(function()
                 while claimRunning do
-                    -- Check for premium pet first
                     local premiumPet = checkSeasonPremiumPet()
                     if premiumPet then
                         claimRunning = false
@@ -691,13 +687,11 @@ QuestTab:Toggle({
                     local seasonUI = screenGui and screenGui:FindFirstChild("Season")
                     
                     if seasonUI then
-                        -- Force UI visible if hidden
                         if not seasonUI.Visible then
                             seasonUI.Visible = true
                             task.wait(1)
                         end
                         
-                        -- 1. Check if there are tiers available to claim
                         local track = seasonUI.Frame.Content.Rewards.Track
                         local claimedAny = false
                         
@@ -710,14 +704,13 @@ QuestTab:Toggle({
                                         if btn and (btn.Text == "Claim" or btn.Text == "BEGIN!") then
                                             pcall(function() firesignal(btn.Activated) end)
                                             claimedAny = true
-                                            task.wait(1) -- Wait for server to process
+                                            task.wait(1)
                                         end
                                     end
                                 end
                             end
                         end
                         
-                        -- 2. If no tiers were claimed, check if we need to start Infinity track
                         if not claimedAny then
                             local beginBtn = seasonUI.Frame.Cover and seasonUI.Frame.Cover:FindFirstChild("Action") and seasonUI.Frame.Cover.Action:FindFirstChild("Button")
                             if beginBtn and beginBtn.Text == "BEGIN!" then
@@ -726,7 +719,6 @@ QuestTab:Toggle({
                             end
                         end
                         
-                        -- 3. Close UI so it doesn't block your screen
                         seasonUI.Visible = false
                         task.wait(2)
                     else
@@ -761,11 +753,12 @@ QuestTab:Toggle({
         if v then
             globalThread = task.spawn(function()
                 while globalRunning do
+                    getgenv().questActive = false
+                    getgenv().questEgg = nil
+                    
                     local quests = getActiveQuests("global")
                     if #quests == 0 then
                         pcall(function() Remote:FireServer("ClaimGlobalIncentiveQuest") end)
-                        getgenv().questActive = false
-                        getgenv().questEgg = nil
                         task.wait(60)
                     else
                         local questToDo = nil
@@ -789,8 +782,6 @@ QuestTab:Toggle({
                             getgenv().ActivityStatus.current = "Global Incentive done!"
                             getgenv().ActivityStatus.trigger = true
                         else
-                            getgenv().questActive = false
-                            getgenv().questEgg = nil
                             task.wait(30)
                         end
                     end
@@ -841,11 +832,12 @@ task.spawn(function()
         globalRunning = true
         globalThread = task.spawn(function()
             while globalRunning do
+                getgenv().questActive = false
+                getgenv().questEgg = nil
+                
                 local quests = getActiveQuests("global")
                 if #quests == 0 then
                     pcall(function() Remote:FireServer("ClaimGlobalIncentiveQuest") end)
-                    getgenv().questActive = false
-                    getgenv().questEgg = nil
                     task.wait(60)
                 else
                     local questToDo = nil
@@ -869,8 +861,6 @@ task.spawn(function()
                         getgenv().ActivityStatus.current = "Global Incentive done!"
                         getgenv().ActivityStatus.trigger = true
                     else
-                        getgenv().questActive = false
-                        getgenv().questEgg = nil
                         task.wait(30)
                     end
                 end
