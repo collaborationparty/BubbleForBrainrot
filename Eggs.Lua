@@ -658,6 +658,7 @@ task.spawn(function()
             if v then
                 if autoHatchThread then task.cancel(autoHatchThread) end
                 autoHatchThread = task.spawn(function()
+                    local questIdleTimer = 0
                     while autoHatchEnabled do
                         local specialEggActive = false
                         if multiEggEnabled and findMultiEgg() then specialEggActive = true end
@@ -669,8 +670,15 @@ task.spawn(function()
                         )
                         local questActive = getgenv().questActive
                         
-                        while (specialEggActive or bountyOverride or questActive) and autoHatchEnabled do
-                            task.wait(0.3)
+                        -- Track idle time
+                        if questActive or specialEggActive or bountyOverride then
+                            questIdleTimer = 0
+                        else
+                            questIdleTimer = questIdleTimer + 0.1
+                        end
+                        
+                        while (specialEggActive or bountyOverride or questActive or questIdleTimer < 2) and autoHatchEnabled do
+                            task.wait(0.1)
                             
                             specialEggActive = false
                             if multiEggEnabled and findMultiEgg() then specialEggActive = true end
@@ -681,10 +689,13 @@ task.spawn(function()
                                 bountyRarityFilter == "Current" or currentBountyRarity == bountyRarityFilter
                             )
                             questActive = getgenv().questActive
+                            
+                            if questActive or specialEggActive or bountyOverride then
+                                questIdleTimer = 0
+                            else
+                                questIdleTimer = questIdleTimer + 0.1
+                            end
                         end
-                        
-                        -- NEW: Delay to avoid fighting Quest
-                        task.wait(0.5)
                         
                         teleportToEgg(selectedEgg)
                         pcall(function() Remote:FireServer("HatchEgg", selectedEgg, HATCH_AMOUNT) end)
@@ -958,6 +969,7 @@ task.spawn(function()
 
     if autoHatchEnabled then
         autoHatchThread = task.spawn(function()
+            local questIdleTimer = 0
             while autoHatchEnabled do
                 local specialEggActive = false
                 if multiEggEnabled and findMultiEgg() then specialEggActive = true end
@@ -969,8 +981,14 @@ task.spawn(function()
                 )
                 local questActive = getgenv().questActive
                 
-                while (specialEggActive or bountyOverride or questActive) and autoHatchEnabled do
-                    task.wait(0.3)
+                if questActive or specialEggActive or bountyOverride then
+                    questIdleTimer = 0
+                else
+                    questIdleTimer = questIdleTimer + 0.1
+                end
+                
+                while (specialEggActive or bountyOverride or questActive or questIdleTimer < 2) and autoHatchEnabled do
+                    task.wait(0.1)
                     
                     specialEggActive = false
                     if multiEggEnabled and findMultiEgg() then specialEggActive = true end
@@ -981,9 +999,13 @@ task.spawn(function()
                         bountyRarityFilter == "Current" or currentBountyRarity == bountyRarityFilter
                     )
                     questActive = getgenv().questActive
+                    
+                    if questActive or specialEggActive or bountyOverride then
+                        questIdleTimer = 0
+                    else
+                        questIdleTimer = questIdleTimer + 0.1
+                    end
                 end
-                
-                task.wait(0.5)
                 
                 teleportToEgg(selectedEgg)
                 pcall(function() Remote:FireServer("HatchEgg", selectedEgg, HATCH_AMOUNT) end)
