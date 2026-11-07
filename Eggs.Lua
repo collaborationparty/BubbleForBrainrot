@@ -463,7 +463,7 @@ local function findAdminShadowEgg()
 end
 
 -- ======================================
--- GLOBAL BOUNTY UPDATER (NEW - IMPORTANT)
+-- GLOBAL BOUNTY UPDATER
 -- ======================================
 task.spawn(function()
     while true do
@@ -682,6 +682,9 @@ task.spawn(function()
                             )
                             questActive = getgenv().questActive
                         end
+                        
+                        -- NEW: Delay to avoid fighting Quest
+                        task.wait(0.5)
                         
                         teleportToEgg(selectedEgg)
                         pcall(function() Remote:FireServer("HatchEgg", selectedEgg, HATCH_AMOUNT) end)
@@ -979,6 +982,8 @@ task.spawn(function()
                     )
                     questActive = getgenv().questActive
                 end
+                
+                task.wait(0.5)
                 
                 teleportToEgg(selectedEgg)
                 pcall(function() Remote:FireServer("HatchEgg", selectedEgg, HATCH_AMOUNT) end)
