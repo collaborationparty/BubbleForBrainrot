@@ -682,48 +682,9 @@ QuestTab:Toggle({
                         break
                     end
                     
-                    local playerGui = player:FindFirstChild("PlayerGui")
-                    local screenGui = playerGui and playerGui:FindFirstChild("ScreenGui")
-                    local seasonUI = screenGui and screenGui:FindFirstChild("Season")
-                    
-                    if seasonUI then
-                        if not seasonUI.Visible then
-                            seasonUI.Visible = true
-                            task.wait(1)
-                        end
-                        
-                        local track = seasonUI.Frame.Content.Rewards.Track
-                        local claimedAny = false
-                        
-                        if track then
-                            for _, tier in ipairs(track:GetChildren()) do
-                                if tier.Name:find("Tier") then
-                                    local action = tier:FindFirstChild("Action")
-                                    if action then
-                                        local btn = action:FindFirstChild("Button")
-                                        if btn and (btn.Text == "Claim" or btn.Text == "BEGIN!") then
-                                            pcall(function() firesignal(btn.Activated) end)
-                                            claimedAny = true
-                                            task.wait(1)
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                        
-                        if not claimedAny then
-                            local beginBtn = seasonUI.Frame.Cover and seasonUI.Frame.Cover:FindFirstChild("Action") and seasonUI.Frame.Cover.Action:FindFirstChild("Button")
-                            if beginBtn and beginBtn.Text == "BEGIN!" then
-                                pcall(function() firesignal(beginBtn.Activated) end)
-                                task.wait(2)
-                            end
-                        end
-                        
-                        seasonUI.Visible = false
-                        task.wait(2)
-                    else
-                        task.wait(2)
-                    end
+                    -- Completely silent claim via remote
+                    pcall(function() RE:FireServer("ClaimSeason") end)
+                    task.wait(5)
                 end
             end)
         else
