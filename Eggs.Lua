@@ -1,5 +1,5 @@
 -- ================================================
--- EGGS TAB (WINDUI VERSION - FINAL)
+-- EGGS TAB (WINDUI VERSION)
 -- ================================================
 repeat task.wait() until getgenv().Window
 local Window = getgenv().Window
@@ -468,14 +468,11 @@ end
 task.spawn(function()
     task.wait(0.5)
 
-    -- ======================================
     -- PART 1
-    -- ======================================
     EggsTab:Section({ Title = "------- Special Eggs -------" })
 
     EggsTab:Toggle({
         Title = "Auto 4x / 5x Egg",
-        Desc = "Priority 1 — Hatching Multiplier Egg (auto-detects event name)",
         Value = multiEggEnabled,
         Callback = function(v)
             multiEggEnabled = v
@@ -504,19 +501,21 @@ task.spawn(function()
                             pcall(function() Remote:FireServer("HatchEgg", egg.Name, HATCH_AMOUNT) end)
                             task.wait(0.1)
                         else
+                            getgenv().questActive = false
+                            getgenv().questEgg = nil
                             task.wait(1)
                         end
                     end
                 end)
             elseif multiEggThread then
                 task.cancel(multiEggThread)
+                getgenv().questActive = false
             end
         end,
     })
 
     EggsTab:Toggle({
         Title = "Auto Admin Shadow Egg",
-        Desc = "Priority 2 — Hatching Admin Shadow Egg",
         Value = adminShadowEnabled,
         Callback = function(v)
             adminShadowEnabled = v
@@ -549,19 +548,21 @@ task.spawn(function()
                             if root then root.CFrame = CFrame.new(128, 10, 89) end
                             task.wait(3)
                         else
+                            getgenv().questActive = false
+                            getgenv().questEgg = nil
                             task.wait(1)
                         end
                     end
                 end)
             elseif adminShadowThread then
                 task.cancel(adminShadowThread)
+                getgenv().questActive = false
             end
         end,
     })
 
     EggsTab:Toggle({
         Title = "Auto Doodle Rift",
-        Desc = "Priority 3 — Hatching Doodle Egg",
         Value = doodleEnabled,
         Callback = function(v)
             doodleEnabled = v
@@ -583,19 +584,22 @@ task.spawn(function()
                                 pcall(function() Remote:FireServer("HatchEgg", "Doodle Egg", HATCH_AMOUNT) end)
                                 task.wait(0.1)
                             end
+                            getgenv().questActive = false
+                            getgenv().questEgg = nil
                         end
                         task.wait(1)
                     end
                 end)
             elseif doodleThread then
                 task.cancel(doodleThread)
+                getgenv().questActive = false
             end
         end,
     })
 
     EggsTab:Section({ Title = "------- Hatch Selected Egg -------" })
 
-    local eggDropdown = EggsTab:Dropdown({
+    EggsTab:Dropdown({
         Title = "Select Egg",
         Values = getAllEggNames(),
         Value = selectedEgg,
@@ -608,43 +612,23 @@ task.spawn(function()
 
     EggsTab:Button({
         Title = "Re Scan The Egg Dropdown",
-        Desc = "Auto-discovers new eggs from the world (replaces saved list)",
         Callback = function()
             local found = scanAndDiscoverEggs()
-            local newCount = 0
-
             discoveredEggs = {}
             for name, pos in pairs(found) do
                 discoveredEggs[name] = pos
-                if not EGG_LOCATIONS[name] then
-                    newCount = newCount + 1
-                    print("[Eggs] Discovered: " .. name)
-                end
             end
-
             eggSettings.discoveredEggs = {}
             for name, pos in pairs(discoveredEggs) do
                 eggSettings.discoveredEggs[name] = {pos.X, pos.Y, pos.Z}
             end
             saveHubSettings()
-
-            local newEggs = getAllEggNames()
-            for i = #eggDropdown.Values, 1, -1 do
-                eggDropdown.Values[i] = nil
-            end
-            for _, eggName in ipairs(newEggs) do
-                table.insert(eggDropdown.Values, eggName)
-            end
-
-            local currentValue = eggDropdown.Value
-            pcall(function() eggDropdown:Select(currentValue) end)
         end,
     })
 
     EggsTab:Input({
         Title = "Hatch Amount",
         Value = tostring(HATCH_AMOUNT),
-        Placeholder = "12",
         Callback = function(v)
             local n = tonumber(v)
             if n then
@@ -656,8 +640,7 @@ task.spawn(function()
     })
 
     EggsTab:Toggle({
-        Title = "Auto Hatch (Teleport + Hatch)",
-        Desc = "Hatches selected egg (pauses when special rift, quest, or bounty override is active)",
+        Title = "Auto Hatch",
         Value = autoHatchEnabled,
         Callback = function(v)
             autoHatchEnabled = v
@@ -667,10 +650,25 @@ task.spawn(function()
                 if autoHatchThread then task.cancel(autoHatchThread) end
                 autoHatchThread = task.spawn(function()
                     while autoHatchEnabled do
+                        -- Priority checks
+                        local specialEggActive = false
+                        if multiEggEnabled and findMultiEgg() then specialEggActive = true end
+                        if adminShadowEnabled and findAdminShadowEgg() then specialEggActive = true end
+                        if doodleEnabled and isRiftExists("doodle-rift") then specialEggActive = true end
+                        
                         local bountyOverride = bountyEnabled and (bountyRarityFilter == "Current" or currentBountyRarity == bountyRarityFilter)
-                        while (getgenv().questActive or bountyOverride) and autoHatchEnabled do
+                        local questActive = getgenv().questActive
+                        
+                        while (specialEggActive or bountyOverride or questActive) and autoHatchEnabled do
                             task.wait(0.5)
+                            
+                            specialEggActive = false
+                            if multiEggEnabled and findMultiEgg() then specialEggActive = true end
+                            if adminShadowEnabled and findAdminShadowEgg() then specialEggActive = true end
+                            if doodleEnabled and isRiftExists("doodle-rift") then specialEggActive = true end
+                            
                             bountyOverride = bountyEnabled and (bountyRarityFilter == "Current" or currentBountyRarity == bountyRarityFilter)
+                            questActive = getgenv().questActive
                         end
                         
                         teleportToEgg(selectedEgg)
@@ -686,7 +684,6 @@ task.spawn(function()
 
     EggsTab:Toggle({
         Title = "Auto Spam E",
-        Desc = "Spams E key and hatches continuously",
         Value = spamEEnabled,
         Callback = function(v)
             spamEEnabled = v
@@ -715,7 +712,6 @@ task.spawn(function()
 
     EggsTab:Toggle({
         Title = "Hide Hatch Animation",
-        Desc = "Hides the hatch animation for better performance",
         Value = hideAnimEnabled,
         Callback = function(v)
             hideAnimEnabled = v
@@ -727,9 +723,7 @@ task.spawn(function()
 
     task.wait(1)
 
-    -- ======================================
     -- PART 2
-    -- ======================================
     EggsTab:Section({ Title = "------- Inventory Egg -------" })
 
     EggsTab:Dropdown({
@@ -745,7 +739,6 @@ task.spawn(function()
 
     EggsTab:Toggle({
         Title = "Auto Open Inventory Egg",
-        Desc = "Automatically opens selected inventory egg",
         Value = false,
         Callback = function(v)
             inventoryEnabled = v
@@ -767,7 +760,6 @@ task.spawn(function()
 
     EggsTab:Dropdown({
         Title = "Prioritize Bounty Rarity",
-        Desc = "Auto Hatch will pause and focus Bounty if it matches this rarity",
         Values = BOUNTY_RARITY_OPTIONS,
         Value = bountyRarityFilter,
         Callback = function(v)
@@ -778,8 +770,7 @@ task.spawn(function()
     })
 
     EggsTab:Toggle({
-        Title = "Auto Bounty (Teleport + Hatch)",
-        Desc = "Hatches current bounty egg (pauses when special rift or quest is active)",
+        Title = "Auto Bounty",
         Value = bountyEnabled,
         Callback = function(v)
             bountyEnabled = v
@@ -791,7 +782,6 @@ task.spawn(function()
                     while bountyEnabled do
                         updateBountyInfo()
                         local matchesFilter = (bountyRarityFilter == "Current") or (currentBountyRarity == bountyRarityFilter)
-                        
                         if matchesFilter and currentBountyEgg ~= "None" then
                             teleportToEgg(currentBountyEgg)
                             pcall(function() Remote:FireServer("HatchEgg", currentBountyEgg, HATCH_AMOUNT) end)
@@ -809,7 +799,6 @@ task.spawn(function()
 
     EggsTab:Toggle({
         Title = "Auto Summon Rift for Bounty",
-        Desc = "Summons bounty rift every 31 minutes",
         Value = riftEnabled,
         Callback = function(v)
             riftEnabled = v
@@ -848,18 +837,8 @@ task.spawn(function()
         end,
     })
 
-    EggsTab:Button({
-        Title = "Re Scan XL Eggs",
-        Callback = function()
-            xlEggList = getXLEggs()
-            selectedXLEgg = xlEggList[1]
-            print("[XL Bounty] Found " .. #xlEggList .. " XL eggs")
-        end,
-    })
-
     EggsTab:Toggle({
-        Title = "Auto XL Bounty (Teleport + Hatch)",
-        Desc = "Hatches XL bounty eggs automatically",
+        Title = "Auto XL Bounty",
         Value = false,
         Callback = function(v)
             xlBountyRunning = v
@@ -878,9 +857,7 @@ task.spawn(function()
         end,
     })
 
-    -- ======================================
     -- AUTO-START SAVED TOGGLES
-    -- ======================================
     task.wait(0.5)
     
     if multiEggEnabled then
@@ -896,13 +873,13 @@ task.spawn(function()
                     local root = getRoot()
                     if root then
                         local ok, pivot = pcall(function() return egg:GetPivot() end)
-                        if ok and pivot then
-                            root.CFrame = CFrame.new(pivot.Position + Vector3.new(0, 5, 0))
-                        end
+                        if ok and pivot then root.CFrame = CFrame.new(pivot.Position + Vector3.new(0, 5, 0)) end
                     end
                     pcall(function() Remote:FireServer("HatchEgg", egg.Name, HATCH_AMOUNT) end)
                     task.wait(0.1)
                 else
+                    getgenv().questActive = false
+                    getgenv().questEgg = nil
                     task.wait(1)
                 end
             end
@@ -922,9 +899,7 @@ task.spawn(function()
                     local root = getRoot()
                     if root then
                         local ok, pivot = pcall(function() return egg:GetPivot() end)
-                        if ok and pivot then
-                            root.CFrame = CFrame.new(pivot.Position + Vector3.new(0, 5, 0))
-                        end
+                        if ok and pivot then root.CFrame = CFrame.new(pivot.Position + Vector3.new(0, 5, 0)) end
                     end
                     pcall(function() Remote:FireServer("HatchEgg", "Admin Shadow Egg", HATCH_AMOUNT) end)
                     task.wait(0.1)
@@ -933,6 +908,8 @@ task.spawn(function()
                     if root then root.CFrame = CFrame.new(128, 10, 89) end
                     task.wait(3)
                 else
+                    getgenv().questActive = false
+                    getgenv().questEgg = nil
                     task.wait(1)
                 end
             end
@@ -954,6 +931,8 @@ task.spawn(function()
                         pcall(function() Remote:FireServer("HatchEgg", "Doodle Egg", HATCH_AMOUNT) end)
                         task.wait(0.1)
                     end
+                    getgenv().questActive = false
+                    getgenv().questEgg = nil
                 end
                 task.wait(1)
             end
@@ -963,10 +942,24 @@ task.spawn(function()
     if autoHatchEnabled then
         autoHatchThread = task.spawn(function()
             while autoHatchEnabled do
+                local specialEggActive = false
+                if multiEggEnabled and findMultiEgg() then specialEggActive = true end
+                if adminShadowEnabled and findAdminShadowEgg() then specialEggActive = true end
+                if doodleEnabled and isRiftExists("doodle-rift") then specialEggActive = true end
+                
                 local bountyOverride = bountyEnabled and (bountyRarityFilter == "Current" or currentBountyRarity == bountyRarityFilter)
-                while (getgenv().questActive or bountyOverride) and autoHatchEnabled do
+                local questActive = getgenv().questActive
+                
+                while (specialEggActive or bountyOverride or questActive) and autoHatchEnabled do
                     task.wait(0.5)
+                    
+                    specialEggActive = false
+                    if multiEggEnabled and findMultiEgg() then specialEggActive = true end
+                    if adminShadowEnabled and findAdminShadowEgg() then specialEggActive = true end
+                    if doodleEnabled and isRiftExists("doodle-rift") then specialEggActive = true end
+                    
                     bountyOverride = bountyEnabled and (bountyRarityFilter == "Current" or currentBountyRarity == bountyRarityFilter)
+                    questActive = getgenv().questActive
                 end
                 
                 teleportToEgg(selectedEgg)
@@ -982,7 +975,6 @@ task.spawn(function()
                 VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
                 task.wait(0.1)
                 VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-                
                 local eggToHatch = getgenv().questActive and getgenv().questEgg or (bountyEnabled and currentBountyEgg or selectedEgg)
                 if eggToHatch then
                     pcall(function() Remote:FireServer("HatchEgg", eggToHatch, HATCH_AMOUNT) end)
@@ -1001,7 +993,6 @@ task.spawn(function()
             while bountyEnabled do
                 updateBountyInfo()
                 local matchesFilter = (bountyRarityFilter == "Current") or (currentBountyRarity == bountyRarityFilter)
-                
                 if matchesFilter and currentBountyEgg ~= "None" then
                     teleportToEgg(currentBountyEgg)
                     pcall(function() Remote:FireServer("HatchEgg", currentBountyEgg, HATCH_AMOUNT) end)
