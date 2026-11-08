@@ -180,9 +180,6 @@ local function getAvailableCrate()
 end
 
 local function completeQuest(quest)
-    -- NOTE: Do NOT set questActive = false at the end.
-    -- The questLoop manages the flag now.
-    
     if quest.type == "Bubbles" then
         getgenv().questEgg = nil
         local prevPos = savePosition()
@@ -211,8 +208,8 @@ local function completeQuest(quest)
             if pos then teleportTo(pos) end
             task.wait(0.5)
             while true do
-                pcall(function() Remote:InvokeServer("HatchEgg", eggName, HATCH_AMOUNT) end)
-                task.wait(1)
+                pcall(function() Remote:FireServer("HatchEgg", eggName, HATCH_AMOUNT) end)
+                task.wait(0.03)
                 local newQuests = getActiveQuests(quest.id:match("^(.-)%d+$") or "")
                 local stillActive = false
                 for _, q in ipairs(newQuests) do
@@ -228,8 +225,8 @@ local function completeQuest(quest)
             if pos then teleportTo(pos) end
             task.wait(0.5)
             while true do
-                pcall(function() Remote:InvokeServer("HatchEgg", "Spikey Egg", HATCH_AMOUNT) end)
-                task.wait(1)
+                pcall(function() Remote:FireServer("HatchEgg", "Spikey Egg", HATCH_AMOUNT) end)
+                task.wait(0.03)
                 local newQuests = getActiveQuests(quest.id:match("^(.-)%d+$") or "")
                 local stillActive = false
                 for _, q in ipairs(newQuests) do
@@ -400,25 +397,32 @@ local function completeQuest(quest)
             restorePosition(prevPos)
         end
     end
-    
-    -- Removed: getgenv().questActive = false (managed by questLoop)
 end
 
 local function questLoop(filter)
     return function()
         while true do
+            -- Set the hard lock ON at the top
+            getgenv().questTabActive = true
+            
             local quests = getActiveQuests(filter)
             
             if #quests == 0 then
-                -- Truly done with all quests
-                skippedQuests = {}
-                getgenv().questActive = false
-                getgenv().questEgg = nil
+                -- Wait a bit and re-check before releasing the lock
                 task.wait(10)
-                continue
+                quests = getActiveQuests(filter)
+                
+                if #quests == 0 then
+                    -- Truly done. Release the lock.
+                    skippedQuests = {}
+                    getgenv().questActive = false
+                    getgenv().questEgg = nil
+                    getgenv().questTabActive = false
+                    task.wait(10)
+                    continue
+                end
             end
             
-            -- We have quests. Lock the flag ON before doing anything.
             getgenv().questActive = true
             
             local questToDo = nil
@@ -443,7 +447,7 @@ local function questLoop(filter)
                 getgenv().ActivityStatus.current = "Season Pass done!"
                 getgenv().ActivityStatus.trigger = true
             else
-                -- All remaining quests are skipped (pearl quests with no crates)
+                -- All remaining quests are skipped
                 getgenv().questActive = false
                 getgenv().questEgg = nil
                 task.wait(30)
@@ -641,6 +645,7 @@ QuestTab:Toggle({
             if seasonThread then task.cancel(seasonThread) end
             getgenv().questActive = false
             getgenv().questEgg = nil
+            getgenv().questTabActive = false
             constants.DefaultPickupRadius = originalRadius
         end
     end,
@@ -688,7 +693,6 @@ QuestTab:Toggle({
                         break
                     end
                     
-                    -- Completely silent claim via remote
                     pcall(function() RE:FireServer("ClaimSeason") end)
                     task.wait(5)
                 end
@@ -720,43 +724,49 @@ QuestTab:Toggle({
         if v then
             globalThread = task.spawn(function()
                 while globalRunning do
-                    local quests = getActiveQuests("global")
+                    getgenv().questTabActive = true
                     
+                    local quests = getActiveQuests("global")
                     if #quests == 0 then
                         pcall(function() Remote:FireServer("ClaimGlobalIncentiveQuest") end)
-                        getgenv().questActive = false
-                        getgenv().questEgg = nil
-                        task.wait(60)
-                    else
-                        -- Lock the flag ON before doing anything
-                        getgenv().questActive = true
-                        
-                        local questToDo = nil
-                        for _, q in ipairs(quests) do
-                            local curr = q.currency or ""
-                            if q.type == "Collect" and curr:lower():find("pearl") then
-                                if not skippedQuests[q.id] then
-                                    questToDo = q
-                                    break
-                                end
-                            elseif q.type == "Hatch" and not q.egg and not q.rarity then
-                            else
+                        task.wait(10)
+                        quests = getActiveQuests("global")
+                        if #quests == 0 then
+                            getgenv().questActive = false
+                            getgenv().questEgg = nil
+                            getgenv().questTabActive = false
+                            task.wait(60)
+                            continue
+                        end
+                    end
+                    
+                    getgenv().questActive = true
+                    
+                    local questToDo = nil
+                    for _, q in ipairs(quests) do
+                        local curr = q.currency or ""
+                        if q.type == "Collect" and curr:lower():find("pearl") then
+                            if not skippedQuests[q.id] then
                                 questToDo = q
                                 break
                             end
-                        end
-                        
-                        if questToDo then
-                            getgenv().ActivityStatus.current = "Doing Global Incentive..."
-                            getgenv().ActivityStatus.trigger = true
-                            completeQuest(questToDo)
-                            getgenv().ActivityStatus.current = "Global Incentive done!"
-                            getgenv().ActivityStatus.trigger = true
+                        elseif q.type == "Hatch" and not q.egg and not q.rarity then
                         else
-                            getgenv().questActive = false
-                            getgenv().questEgg = nil
-                            task.wait(30)
+                            questToDo = q
+                            break
                         end
+                    end
+                    
+                    if questToDo then
+                        getgenv().ActivityStatus.current = "Doing Global Incentive..."
+                        getgenv().ActivityStatus.trigger = true
+                        completeQuest(questToDo)
+                        getgenv().ActivityStatus.current = "Global Incentive done!"
+                        getgenv().ActivityStatus.trigger = true
+                    else
+                        getgenv().questActive = false
+                        getgenv().questEgg = nil
+                        task.wait(30)
                     end
                 end
             end)
@@ -764,6 +774,7 @@ QuestTab:Toggle({
             if globalThread then task.cancel(globalThread) end
             getgenv().questActive = false
             getgenv().questEgg = nil
+            getgenv().questTabActive = false
             constants.DefaultPickupRadius = originalRadius
         end
     end,
@@ -805,42 +816,49 @@ task.spawn(function()
         globalRunning = true
         globalThread = task.spawn(function()
             while globalRunning do
-                local quests = getActiveQuests("global")
+                getgenv().questTabActive = true
                 
+                local quests = getActiveQuests("global")
                 if #quests == 0 then
                     pcall(function() Remote:FireServer("ClaimGlobalIncentiveQuest") end)
-                    getgenv().questActive = false
-                    getgenv().questEgg = nil
-                    task.wait(60)
-                else
-                    getgenv().questActive = true
-                    
-                    local questToDo = nil
-                    for _, q in ipairs(quests) do
-                        local curr = q.currency or ""
-                        if q.type == "Collect" and curr:lower():find("pearl") then
-                            if not skippedQuests[q.id] then
-                                questToDo = q
-                                break
-                            end
-                        elseif q.type == "Hatch" and not q.egg and not q.rarity then
-                        else
+                    task.wait(10)
+                    quests = getActiveQuests("global")
+                    if #quests == 0 then
+                        getgenv().questActive = false
+                        getgenv().questEgg = nil
+                        getgenv().questTabActive = false
+                        task.wait(60)
+                        continue
+                    end
+                end
+                
+                getgenv().questActive = true
+                
+                local questToDo = nil
+                for _, q in ipairs(quests) do
+                    local curr = q.currency or ""
+                    if q.type == "Collect" and curr:lower():find("pearl") then
+                        if not skippedQuests[q.id] then
                             questToDo = q
                             break
                         end
-                    end
-                    
-                    if questToDo then
-                        getgenv().ActivityStatus.current = "Doing Global Incentive..."
-                        getgenv().ActivityStatus.trigger = true
-                        completeQuest(questToDo)
-                        getgenv().ActivityStatus.current = "Global Incentive done!"
-                        getgenv().ActivityStatus.trigger = true
+                    elseif q.type == "Hatch" and not q.egg and not q.rarity then
                     else
-                        getgenv().questActive = false
-                        getgenv().questEgg = nil
-                        task.wait(30)
+                        questToDo = q
+                        break
                     end
+                end
+                
+                if questToDo then
+                    getgenv().ActivityStatus.current = "Doing Global Incentive..."
+                    getgenv().ActivityStatus.trigger = true
+                    completeQuest(questToDo)
+                    getgenv().ActivityStatus.current = "Global Incentive done!"
+                    getgenv().ActivityStatus.trigger = true
+                else
+                    getgenv().questActive = false
+                    getgenv().questEgg = nil
+                    task.wait(30)
                 end
             end
         end)
